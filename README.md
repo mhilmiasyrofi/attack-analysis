@@ -62,14 +62,19 @@ Early stopping w.r.t. training epochs was first introduced in the [code of TRADE
 
 running command for training:
 ```python
-python train_cifar.py --model WideResNet --attack pgd \
-                      --lr-schedule piecewise --norm l_inf --epsilon 8 \
-                      --epochs 110 --attack-iters 10 --pgd-alpha 2 \
-                      --fname auto \
-		      --optimizer 'momentum' \
-		      --weight_decay 5e-4
-                      --batch-size 128 \
-		      --BNeval \
+python train_cifar.py --model WideResNet \
+    --attack pgd \
+    --lr-schedule piecewise \
+    --norm l_inf \
+    --epsilon 8 \
+    --epochs 110 \
+    --attack-iters 10 \
+    --pgd-alpha 2 \
+    --fname auto \
+    --optimizer 'momentum' \
+    --weight_decay 5e-4 \
+    --batch-size 128 \
+    --BNeval 
 ```
 
 ## Empirical Evaluations
