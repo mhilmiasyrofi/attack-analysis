@@ -23,7 +23,7 @@ import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
 from art.config import ART_NUMPY_DTYPE
-from art.attacks.evasion import FastGradientMethod, AutoProjectedGradientDescent
+from art.attacks.evasion import *
 from art.estimators.classification import PyTorchClassifier
 from art.utils import load_dataset
 
@@ -149,21 +149,20 @@ if __name__ == "__main__" :
     # Step 5: Evaluate the ART classifier on benign test examples
 
     predictions = classifier.predict(x_test)
-#     id = 2
-#     print(predictions[id])
-#     print(np.argmax(predictions, axis=1)[id])
-#     print(y_test[id])
     accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
 #     accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
-    print("====Accuracy on benign test examples: {}%".format(accuracy * 100))
+    print("=== Accuracy on benign test examples: {}%".format(accuracy * 100))
 
     # Step 6: Generate adversarial test examples
     epsilon = (8. / 255.)
-    attack = AutoProjectedGradientDescent(estimator=classifier, eps=epsilon)
+#     attack = FastGradientMethod(estimator=classifier, eps=epsilon)
+    attack = ProjectedGradientDescent(estimator=classifier)
+
     x_test_adv = attack.generate(x=x_test)
 
     # Step 7: Evaluate the ART classifier on adversarial test examples
 
     predictions = classifier.predict(x_test_adv)
-    accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
+    accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
+#     accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
     print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))
