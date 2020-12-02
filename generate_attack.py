@@ -10,13 +10,16 @@ import sys
 import time
 import math
 
+import numpy as np
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import numpy as np
-import torchvision.datasets as datasets
 import torch.utils.data as data
+
+import torchvision
+import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
 from art.config import ART_NUMPY_DTYPE
@@ -27,18 +30,48 @@ from art.utils import load_dataset
 
 from models import *
 
-from utils import *
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+#####################
+## data preprocessing
+#####################
+
+cifar10_mean = (0.4914, 0.4822, 0.4465) # equals np.mean(train_set.train_data, axis=(0,1,2))/255
+cifar10_std = (0.2471, 0.2435, 0.2616) # equals np.std(train_set.train_data, axis=(0,1,2))/255
+
 mu = torch.tensor(cifar10_mean).view(3,1,1).cuda()
 std = torch.tensor(cifar10_std).view(3,1,1).cuda()
+
+def normalise(x, mean=cifar10_mean, std=cifar10_std):
+    x, mean, std = [np.array(a, np.float32) for a in (x, mean, std)]
+    x -= mean*255
+    x *= 1.0/(255*std)
+    return x
+
+def pad(x, border=4):
+    return np.pad(x, [(0, 0), (border, border), (border, border), (0, 0)], mode='reflect')
 
 def normalize(X):
     return (X - mu)/std
 
 def np_normalize(x, mean=cifar10_mean, std=cifar10_std):
     return (x - mean)/std
+
+def transpose(x, source='NHWC', target='NCHW'):
+    return x.transpose([source.index(d) for d in target]) 
+
+#####################
+## dataset
+#####################
+
+def cifar10(root):
+    train_set = torchvision.datasets.CIFAR10(root=root, train=True, download=True)
+    test_set = torchvision.datasets.CIFAR10(root=root, train=False, download=True)
+    return {
+        'train': {'data': train_set.data, 'labels': train_set.targets},
+        'test': {'data': test_set.data, 'labels': test_set.targets}
+    }
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -74,12 +107,6 @@ if __name__ == "__main__" :
     
     y_train = dataset['train']['labels']
     y_test = dataset['test']['labels']
-
-    min_pixel_value=0
-    max_pixel_value=1
-    print("min_pixel_value: ", min_pixel_value)
-    print("max_pixel_value: ", max_pixel_value)
-
     
 #     print("train shape: ", x_train.shape)
 #     print("test shape: ", x_test.shape)
@@ -92,30 +119,6 @@ if __name__ == "__main__" :
     model = resnet18(pretrained=True)
     model.cuda()
     model.eval()
-
-    test_set = list(zip(x_test, y_test))
-    test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)
-    
-    test_loss = 0
-    test_acc = 0
-    test_n = 0
-    
-    criterion = nn.CrossEntropyLoss()
-
-    for i, batch in enumerate(test_batches):
-        X, y = batch['input'], batch['target']
-
-        clean_input = normalize(X)
-        output = model(clean_input)
-        loss = criterion(output, y)
-
-        test_loss += loss.item() * y.size(0)
-        test_acc += (output.max(1)[1] == y).sum().item()
-        test_n += y.size(0)
-        
-    print("==== Accuracy: ", test_acc/test_n)
-
-
     
     # Step 2a: Define the loss function and the optimizer
     criterion = nn.CrossEntropyLoss()
@@ -125,6 +128,11 @@ if __name__ == "__main__" :
     weight_decay = 1e-2
     params = model.parameters()
     optimizer = torch.optim.SGD(params,lr=lr_max, momentum=0.9, weight_decay=weight_decay)
+    
+    min_pixel_value=0
+    max_pixel_value=1
+#     print("min_pixel_value: ", min_pixel_value)
+#     print("max_pixel_value: ", max_pixel_value)
 
 
     # Step 3: Create the ART classifier
@@ -139,12 +147,9 @@ if __name__ == "__main__" :
     )
     
     # Step 5: Evaluate the ART classifier on benign test examples
-    
-    classifier.fit(x_train, y_train, batch_size=64, nb_epochs=5)
-
 
     predictions = classifier.predict(x_test)
-    id = 2
+#     id = 2
 #     print(predictions[id])
 #     print(np.argmax(predictions, axis=1)[id])
 #     print(y_test[id])
