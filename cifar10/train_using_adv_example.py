@@ -221,7 +221,8 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts,
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
-    parser.add_argument('--adversarial', default='pgd')
+    parser.add_argument('--train-adversarial', default='autoattack')
+    parser.add_argument('--test-adversarial', default='pgd')
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
@@ -309,7 +310,7 @@ def get_args():
     return parser.parse_args()
 
 def get_auto_fname(args):
-    names = args.model + '_'  + args.adversarial + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+    names = args.model + '_'  + args.train_adversarial + '_' + args.test_adversarial + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
     # Group 1
     if args.earlystopPGD:
         names = names + '_earlystopPGD' + str(args.earlystopPGDepoch1) + str(args.earlystopPGDepoch2)
@@ -408,44 +409,197 @@ def main():
     print("Dataset type: ", type(dataset['train']['data']))
     print("Label shape: ", len(dataset['train']['labels']))
     
-    adv_images = None
-    adv_labels = None
-    if args.adversarial == "pgd" :
-        fpath = "data/pgd_adversarial_data.pt"
-        adv_data = torch.load(fpath)    
-        adv_images = adv_data["adv"].numpy()
-        adv_labels = adv_data["label"].numpy()
-    elif args.adversarial == "autoattack" :
-        fpath = "data/autoattack_standard_1_50000_eps_0.03137.pt"
-        adv_data = torch.load(fpath)    
-        adv_images = adv_data["adv"].numpy()
-        adv_labels = adv_data["label"].numpy()
-    elif args.adversarial == "fast-wasserstein" :
-        fpath = "aa_standard_1_50000_eps_0.03137.pth"
-        adv_data = torch.load(fpath)    
-        adv_images = adv_data["adv"].numpy()
-        adv_labels = adv_data["label"].numpy()
+    train_adv_images = None
+    train_adv_labels = None
+    test_robust_images = None
+    test_robust_labels = None
+    
+    if args.train_adversarial == "pgd" :
+        fpath = "data/pgd/"
+        train_path = fpath + "train.pt" 
+        test_path = fpath + "test.pt"
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        train_adv_images = adv_data["adv"].numpy()
+        train_adv_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_robust_images = adv_data["adv"].numpy()
+        test_robust_labels = adv_data["label"].numpy()
+    elif args.train_adversarial == "autoattack" :
+        fpath = "data/autoattack/"
+        train_path = fpath + "train/standard_1_50000_eps_0.03137.pth" 
+        test_path = fpath + "test/standard_1_10000_eps_0.03137.pth"
+        adv_data = torch.load(train_path)
+        train_adv_images = adv_data["adv"].numpy()
+        train_adv_labels = adv_data["label"].numpy()
+        adv_data = torch.load(test_path)
+        test_robust_images = adv_data["adv"].numpy()
+        test_robust_labels = adv_data["label"].numpy()
+    elif args.train_adversarial == "fast-wasserstein" :
+        raise ValueError("Unimplemented Error")
+    elif args.train_adversarial == "ffgsm" :
+        fpath = "data/ffgsm/"
+        train_path = fpath + "train.pt" 
+        test_path = fpath + "test.pt"
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        train_adv_images = adv_data["adv"].numpy()
+        train_adv_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_robust_images = adv_data["adv"].numpy()
+        test_robust_labels = adv_data["label"].numpy()
+    elif args.train_adversarial == "mifgsm" :
+        fpath = "data/mifgsm/"
+        train_path = fpath + "train.pt" 
+        test_path = fpath + "test.pt"
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        train_adv_images = adv_data["adv"].numpy()
+        train_adv_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_robust_images = adv_data["adv"].numpy()
+        test_robust_labels = adv_data["label"].numpy()
+    elif args.train_adversarial == "apgd" :
+        fpath = "data/apgd/"
+        train_path = fpath + "train.pt" 
+        test_path = fpath + "test.pt"
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        train_adv_images = adv_data["adv"].numpy()
+        train_adv_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_robust_images = adv_data["adv"].numpy()
+        test_robust_labels = adv_data["label"].numpy()
+    elif args.train_adversarial == "tpgd" :
+        fpath = "data/tpgd/"
+        train_path = fpath + "train.pt" 
+        test_path = fpath + "test.pt"
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        train_adv_images = adv_data["adv"].numpy()
+        train_adv_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_robust_images = adv_data["adv"].numpy()
+        test_robust_labels = adv_data["label"].numpy()
     else :
         raise ValueError("Unknown model")
         
     
     print("")
-    print("Adversarial Data - Autoattack")
-    print("Dataset shape: ", adv_images.shape)
-    print("Dataset type: ", type(adv_images))
-    print("Label shape: ", len(adv_labels))
+    print("Train Adv Attack Data: ", args.train_adversarial)
+    print("Dataset shape: ", train_adv_images.shape)
+    print("Dataset type: ", type(train_adv_images))
+    print("Label shape: ", len(train_adv_labels))
     print("")
     
-    train_adv_set = list(zip(adv_images,
-        adv_labels))
+    train_adv_set = list(zip(train_adv_images,
+        train_adv_labels))
     
     train_adv_set = Transform(train_adv_set, transforms)
     train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=4)
+    
+    test_robust_set = list(zip(test_robust_images,
+        test_robust_labels))
+        
+    test_robust_batches = Batches(test_robust_set, args.batch_size, shuffle=True, num_workers=4)
+    
 
     test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
     test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)
 
+    
+    test_cross_robust_test_images = None
+    test_cross_robust_test_labels = None
+    test_cross_robust_train_images = None
+    test_cross_robust_train_labels = None
+    if args.test_adversarial == "pgd" :
+        fpath = "data/pgd/"
+        train_path = fpath + "train.pt"
+        test_path = fpath + "test.pt"
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        test_cross_robust_train_images = adv_data["adv"].numpy()
+        test_cross_robust_train_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_cross_robust_test_images = adv_data["adv"].numpy()
+        test_cross_robust_test_labels = adv_data["label"].numpy()
+    elif args.test_adversarial == "autoattack" :
+        fpath = "data/autoattack/"
+        train_path = fpath + "train/standard_1_50000_eps_0.03137.pth"
+        test_path = fpath + "test/standard_1_10000_eps_0.03137.pth"
+        adv_data = torch.load(train_path)
+        test_cross_robust_train_images = adv_data["adv"].numpy()
+        test_cross_robust_train_labels = adv_data["label"].numpy()
+        adv_data = torch.load(test_path)
+        test_cross_robust_test_images = adv_data["adv"].numpy()
+        test_cross_robust_test_labels = adv_data["label"].numpy()
+    elif args.test_adversarial == "fast-wasserstein" :
+        raise ValueError("Unimplemented Error")
+    elif args.test_adversarial == "ffgsm" :
+        fpath = "data/ffgsm/"
+        train_path = fpath + "train.pt"
+        test_path = fpath + "test.pt"
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        test_cross_robust_train_images = adv_data["adv"].numpy()
+        test_cross_robust_train_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_cross_robust_test_images = adv_data["adv"].numpy()
+        test_cross_robust_test_labels = adv_data["label"].numpy()
+    elif args.test_adversarial == "mifgsm" :
+        fpath = "data/mifgsm/"
+        train_path = fpath + "train.pt"
+        test_path = fpath + "test.pt"
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        test_cross_robust_train_images = adv_data["adv"].numpy()
+        test_cross_robust_train_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_cross_robust_test_images = adv_data["adv"].numpy()
+        test_cross_robust_test_labels = adv_data["label"].numpy()
+    elif args.test_adversarial == "tpgd" :
+        fpath = "data/tpgd/"
+        train_path = fpath + "train.pt"
+        test_path = fpath + "test.pt"
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        test_cross_robust_train_images = adv_data["adv"].numpy()
+        test_cross_robust_train_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_cross_robust_test_images = adv_data["adv"].numpy()
+        test_cross_robust_test_labels = adv_data["label"].numpy()
+    else :
+        raise ValueError("Unknown model")
+        
+    
+    
+    print("")
+    print("Test Adv Attack Data: ", args.test_adversarial)
+    print("Dataset shape: ", test_cross_robust_test_images.shape)
+    print("Dataset type: ", type(test_cross_robust_test_images))
+    print("Label shape: ", len(test_cross_robust_test_labels))
+    print("")
+    
+    test_cross_robust_test_set = list(zip(test_cross_robust_test_images,
+    test_cross_robust_test_labels))
+    
+    test_cross_robust_test_batches = Batches(test_cross_robust_test_set, args.batch_size, shuffle=True, num_workers=4)
+    
+    test_cross_robust_train_set = list(zip(test_cross_robust_train_images, test_cross_robust_train_labels))
+    
+    test_cross_robust_train_batches = Batches(test_cross_robust_train_set, args.batch_size, shuffle=True, num_workers=4)
+    
 
+    
     # Set perturbations
     epsilon = (args.epsilon / 255.)
     test_epsilon = (args.test_epsilon / 255.)
@@ -457,6 +611,8 @@ def main():
     model = None
     if args.model == "resnet18" :
         model = resnet18(pretrained=True)
+    elif args.model == "resnet20" :
+        model = resnet20()
     elif args.model == "vgg16bn" :
         model = vgg16_bn(pretrained=True)
     elif args.model == "densenet121" :
@@ -669,7 +825,7 @@ def main():
     
     
     # logger.info('Epoch \t Train Time \t Test Time \t LR \t Train Loss \t Train Grad \t Train Acc \t Train Robust Loss \t Train Robust Acc || \t Test Loss \t Test Acc \t Test Robust Loss \t Test Robust Acc')
-    logger.info('Epoch \t Train Acc \t Train Robust Acc \t Test Acc \t Test Robust Acc')
+    logger.info('Epoch \t Train Acc \t Train Robust Acc \t Test Acc \t Test Robust Acc \t Test Cross Robust Acc on Test \t Test Cross Robust Acc on Train')
     
     
     # Records per epoch for savetxt
@@ -785,125 +941,96 @@ def main():
         model.eval()
         test_loss = 0
         test_acc = 0
+        test_n = 0
+        
         test_robust_loss = 0
         test_robust_acc = 0
-        test_n = 0
-        test_grad = 0
+        test_robust_n = 0
+
+        test_cross_robust_test_loss = 0
+        test_cross_robust_test_acc = 0
+        test_cross_robust_test_n = 0
+
+        test_cross_robust_train_loss = 0
+        test_cross_robust_train_acc = 0
+        test_cross_robust_train_n = 0
+
+        
         for i, batch in enumerate(test_batches):
             X, y = batch['input'], batch['target']
-
-            # Random initialization
-            if args.attack == 'none':
-                delta = torch.zeros_like(X)
-            else:
-                delta, _ = attack_pgd(model, X, y, test_epsilon, test_pgd_alpha, args.attack_iters, args.restarts, args.norm, early_stop=False)
-            delta = delta.detach()
-
-            adv_input = normalize(torch.clamp(X + delta[:X.size(0)], min=lower_limit, max=upper_limit))
-            adv_input.requires_grad = True
-            robust_output = model(adv_input)
-            robust_loss = criterion(robust_output, y)
-
+            
             clean_input = normalize(X)
-            clean_input.requires_grad = True     
             output = model(clean_input)
             loss = criterion(output, y)
 
-            # Get the gradient norm values
-            input_grads = torch.autograd.grad(loss, clean_input, create_graph=False)[0]
-
-            test_robust_loss += robust_loss.item() * y.size(0)
-            test_robust_acc += (robust_output.max(1)[1] == y).sum().item()
             test_loss += loss.item() * y.size(0)
             test_acc += (output.max(1)[1] == y).sum().item()
             test_n += y.size(0)
-            test_grad += input_grads.abs().sum()
+            
+        for i, batch in enumerate(test_robust_batches):
+            adv_input = normalize(batch['input'])
+            y = batch['target']
+
+            robust_output = model(adv_input)
+            robust_loss = criterion(robust_output, y)
+
+            test_robust_loss += robust_loss.item() * y.size(0)
+            test_robust_acc += (robust_output.max(1)[1] == y).sum().item()
+            test_robust_n += y.size(0)
+
+        for i, batch in enumerate(test_cross_robust_test_batches):
+            adv_input = normalize(batch['input'])
+            y = batch['target']
+
+            cross_robust_output = model(adv_input)
+            cross_robust_loss = criterion(cross_robust_output, y)
+
+            test_cross_robust_test_loss += cross_robust_loss.item() * y.size(0)
+            test_cross_robust_test_acc += (cross_robust_output.max(1)[1] == y).sum().item()
+            test_cross_robust_test_n += y.size(0)
+        
+        for i, batch in enumerate(test_cross_robust_train_batches):
+            adv_input = normalize(batch['input'])
+            y = batch['target']
+
+            cross_robust_output = model(adv_input)
+            cross_robust_loss = criterion(cross_robust_output, y)
+
+            test_cross_robust_train_loss += cross_robust_loss.item() * y.size(0)
+            test_cross_robust_train_acc += (cross_robust_output.max(1)[1] == y).sum().item()
+            test_cross_robust_train_n += y.size(0)
 
         test_time = time.time()
-
-        if args.val:
-            val_loss = 0
-            val_acc = 0
-            val_robust_loss = 0
-            val_robust_acc = 0
-            val_n = 0
-            for i, batch in enumerate(val_batches):
-                X, y = batch['input'], batch['target']
-
-                # Random initialization
-                if args.attack == 'none':
-                    delta = torch.zeros_like(X)
-                else:
-                    delta, _ = attack_pgd(model, X, y, test_epsilon, pgd_alpha, args.attack_iters, args.restarts, args.norm, early_stop=False)
-                delta = delta.detach()
-
-                robust_output = model(normalize(torch.clamp(X + delta[:X.size(0)], min=lower_limit, max=upper_limit)))
-                robust_loss = criterion(robust_output, y)
-
-                output = model(normalize(X))
-                loss = criterion(output, y)
-
-                val_robust_loss += robust_loss.item() * y.size(0)
-                val_robust_acc += (robust_output.max(1)[1] == y).sum().item()
-                val_loss += loss.item() * y.size(0)
-                val_acc += (output.max(1)[1] == y).sum().item()
-                val_n += y.size(0)
 
         if not args.eval:
             # logger.info('%d \t %.1f \t  %.1f \t  %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t  %.4f \t  %.4f  %.4f \t %.4f \t  %.4f',
             #     epoch, train_time - start_time, test_time - train_time, lr,
             #     train_loss/train_n, train_grad/train_n, train_acc/train_n, train_robust_loss/train_n, train_robust_acc/train_n,
             #     test_loss/test_n, test_acc/test_n, test_robust_loss/test_n, test_robust_acc/test_n)
-            logger.info('%d \t %.4f \t %.4f \t %.4f \t %.4f',
-                epoch, train_acc/train_n, train_robust_acc/train_n, test_acc/test_n, test_robust_acc/test_n)
+            logger.info('%d \t %.4f \t %.4f \t\t %.4f \t %.4f \t\t %.4f \t\t\t %.4f',
+                epoch+1, train_acc/train_n, train_robust_acc/train_n, test_acc/test_n, test_robust_acc/test_robust_n, test_cross_robust_test_acc/test_cross_robust_test_n, test_cross_robust_train_acc/test_cross_robust_train_n)
 
             # Save results
             train_loss_record.append(train_loss/train_n)
             train_acc_record.append(train_acc/train_n)
             train_robust_loss_record.append(train_robust_loss/train_n)
             train_robust_acc_record.append(train_robust_acc/train_n)
-            train_grad_record.append(train_grad/train_n)
-
+            
             np.savetxt(args.fname+'/train_loss_record.txt', np.array(train_loss_record))
             np.savetxt(args.fname+'/train_acc_record.txt', np.array(train_acc_record))
             np.savetxt(args.fname+'/train_robust_loss_record.txt', np.array(train_robust_loss_record))
             np.savetxt(args.fname+'/train_robust_acc_record.txt', np.array(train_robust_acc_record))
-            np.savetxt(args.fname+'/train_grad_record.txt', np.array(train_grad_record))
-
+            
             test_loss_record.append(test_loss/train_n)
             test_acc_record.append(test_acc/train_n)
             test_robust_loss_record.append(test_robust_loss/train_n)
             test_robust_acc_record.append(test_robust_acc/train_n)
-            test_grad_record.append(test_grad/train_n)
-
+            
             np.savetxt(args.fname+'/test_loss_record.txt', np.array(test_loss_record))
             np.savetxt(args.fname+'/test_acc_record.txt', np.array(test_acc_record))
             np.savetxt(args.fname+'/test_robust_loss_record.txt', np.array(test_robust_loss_record))
             np.savetxt(args.fname+'/test_robust_acc_record.txt', np.array(test_robust_acc_record))
-            np.savetxt(args.fname+'/test_grad_record.txt', np.array(test_grad_record))
-
-
-
-
-            if args.val:
-                logger.info('validation %.4f \t %.4f \t %.4f \t %.4f',
-                    val_loss/val_n, val_acc/val_n, val_robust_loss/val_n, val_robust_acc/val_n)
-
-                if val_robust_acc/val_n > best_val_robust_acc:
-                    torch.save({
-                            'state_dict':model.state_dict(),
-                            'test_robust_acc':test_robust_acc/test_n,
-                            'test_robust_loss':test_robust_loss/test_n,
-                            'test_loss':test_loss/test_n,
-                            'test_acc':test_acc/test_n,
-                            'val_robust_acc':val_robust_acc/val_n,
-                            'val_robust_loss':val_robust_loss/val_n,
-                            'val_loss':val_loss/val_n,
-                            'val_acc':val_acc/val_n,
-                            'epoch': epoch
-                        }, os.path.join(args.fname, f'model_val.pth'))
-                    best_val_robust_acc = val_robust_acc/val_n
-
+            
             # save checkpoint
             if epoch > 99 or (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
                 torch.save(model.state_dict(), os.path.join(args.fname, f'model_{epoch}.pth'))
