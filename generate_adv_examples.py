@@ -5,6 +5,7 @@ and creates adversarial examples using the Fast Gradient Sign Method. Here we us
 it would also be possible to provide a pretrained model to the ART classifier.
 The parameters are chosen for reduced computational requirements of the script and not optimised for accuracy.
 """
+import os
 import argparse
 import sys
 import time
@@ -78,7 +79,7 @@ def get_args():
     parser.add_argument('--model', default='resnet18')
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
     parser.add_argument('--lr-max', default=0.1, type=float)
-    parser.add_argument('--attack', default='pgd', type=str, choices=['pgd', 'fgsm', 'free', 'none'])
+    parser.add_argument('--attack', default='autoattack', type=str, choices=["autoattack", "apgd", "boundaryattack", "brendelbethge", "deepfool", "bim", "elasticnet", "pgd", "jsma", "shadowattack", "squareattack", "wasserstein", "fgm"])
     parser.add_argument('--epsilon', default=8, type=int)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--batch-size', default=200, type=int)
@@ -155,14 +156,61 @@ if __name__ == "__main__" :
 
     # Step 6: Generate adversarial test examples
     epsilon = (8. / 255.)
-#     attack = FastGradientMethod(estimator=classifier, eps=epsilon)
-    attack = ProjectedGradientDescent(estimator=classifier)
+    eps_step = (8. / 255. / 3.)
+
+    attack = None
+    if args.attack == "autoattack" :
+        attack = AutoAttack(estimator=classifier, eps=epsilon, eps_step=eps_step)
+    elif args.attack == "apgd" :
+        attack = AutoProjectedGradientDescent(estimator=classifier, eps=epsilon, eps_step=eps_step)
+    elif args.attack == "boundaryattack" :
+        attack = BoundaryAttack(estimator=classifier, eps=epsilon)
+    elif args.attack == "brendelbethge" :
+        attack = BrendelBethgeAttack(estimator=classifier, eps=epsilon)
+    elif args.attack == "deepfool" :
+        attack = DeepFool(estimator=classifier, eps=epsilon)
+    elif args.attack == "bim" :
+        attack = BasicIterativeMethod(estimator=classifier, eps=epsilon, eps_step=eps_step)
+    elif args.attack == "elasticnet" :
+        attack = ElasticNet(classifier=classifier)
+    elif args.attack == "pgd" :
+        attack = ProjectedGradientDescent(estimator=classifier, eps_step=eps_step)
+    elif args.attack == "jsma" :
+        attack = SaliencyMapMethod(classifier=classifier)
+    elif args.attack == "shadowattack" :
+        attack = ShadowAttack(estimator=classifier, eps=epsilon)
+    elif args.attack == "squareattack" :
+        attack = SquareAttack(estimator=classifier, eps=epsilon)
+    elif args.attack == "wasserstein" :
+        attack = Wasserstein(estimator=classifier, eps=epsilon, eps_step=eps_step)
+    elif args.attack == "fgm" :
+        attack = FastGradientMethod(estimator=classifier, eps=epsilon)
+    else :
+        raise ValueError("Unknown model")
+#     elif args.attack = "" :
+#         attack = (estimator=classifier, eps=epsilon)
+#     elif args.attack = "" :
+#         attack = (estimator=classifier, eps=epsilon)
+#     elif args.attack = "" :
+#         attack = (estimator=classifier, eps=epsilon)
+
+    dirname = "adv_examples/" + args.attack + "/"
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+        
+    x_train_adv = attack.generate(x=x_train)
+    torch.save({"adv": x_train_adv, "label":y_train }, "{}train.pth".format(dirname))
 
     x_test_adv = attack.generate(x=x_test)
+    torch.save({"adv": x_test_adv, "label":y_test }, "{}test.pth".format(dirname))
+    
+    
+#     data = torch.load("_test.pth")
+#     x_test_adv = data["adv"]
 
-    # Step 7: Evaluate the ART classifier on adversarial test examples
+#     # Step 7: Evaluate the ART classifier on adversarial test examples
 
-    predictions = classifier.predict(x_test_adv)
-    accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
-#     accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
-    print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))
+#     predictions = classifier.predict(x_test_adv)
+#     accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
+# #     accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
+#     print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))
