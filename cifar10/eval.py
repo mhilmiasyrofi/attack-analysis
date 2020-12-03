@@ -13,7 +13,6 @@ from torch.autograd import Variable
 import os
 
 from wideresnet import WideResNet
-from preactresnet import PreActResNet18, PreActResNet50
 from models import *
 
 from utils import *
@@ -107,8 +106,9 @@ def get_args():
     parser.add_argument('--model', default='resnet18')
     parser.add_argument('--train-adversarial', default='autoattack')
     parser.add_argument('--test-adversarial', default='pgd')
+    parser.add_argument('--best-model', action='store_true')
     parser.add_argument('--l1', default=0, type=float)
-    parser.add_argument('--data-dir', default='../cifar-data', type=str)
+    parser.add_argument('--data-dir', default='cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
     parser.add_argument('--lr-schedule', default='piecewise', choices=['superconverge', 'piecewise', 'linear', 'piecewisesmoothed', 'piecewisezoom', 'onedrop', 'multipledecay', 'cosine', 'cyclic'])
     parser.add_argument('--lr-max', default=0.1, type=float)
@@ -194,7 +194,8 @@ def get_args():
     return parser.parse_args()
 
 def get_auto_fname(args):
-    names = args.model + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+#     names = args.model + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+    names = args.model + '_'  + args.train_adversarial + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
     # Group 1
     if args.earlystopPGD:
         names = names + '_earlystopPGD' + str(args.earlystopPGDepoch1) + str(args.earlystopPGDepoch2)
@@ -246,6 +247,8 @@ def get_auto_fname(args):
     print('File name: ', names)
     return names
 
+def np_normalize(x, mean=cifar10_mean, std=cifar10_std):
+    return (x - mean)/std
 
 def main():
     args = get_args()
@@ -264,7 +267,7 @@ def main():
         datefmt='%Y/%m/%d %H:%M:%S',
         level=logging.DEBUG,
         handlers=[
-            logging.FileHandler(os.path.join(args.fname, 'eval.log' if args.eval else 'output.log')),
+            logging.FileHandler(os.path.join(args.fname, 'eval_{}.log'.format(args.test_adversarial))),
             logging.StreamHandler()
         ])
 
@@ -278,27 +281,54 @@ def main():
 
 
     # Prepare data
-    transforms = [Crop(32, 32), FlipLR()]
-    if args.cutout:
-        transforms.append(Cutout(args.cutout_len, args.cutout_len))
-    if args.val:
-        try:
-            dataset = torch.load("cifar10_validation_split.pth")
-        except:
-            print("Couldn't find a dataset with a validation split, did you run "
-                  "generate_validation.py?")
-            return
-        val_set = list(zip(transpose(dataset['val']['data']/255.), dataset['val']['labels']))
-        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)
-    else:
-        dataset = cifar10(args.data_dir)
-    train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
-        dataset['train']['labels']))
-    train_set_x = Transform(train_set, transforms)
-    train_batches = Batches(train_set_x, args.batch_size, shuffle=True, set_random_choices=True, num_workers=4)
-
-    test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
+    dataset = cifar10(args.data_dir)
+    
+    x_test = (dataset['test']['data']/255.)
+    x_test = np_normalize(x_test)
+    x_test = transpose(x_test).astype(np.float32)
+    y_test = dataset['test']['labels']
+    
+    test_set = list(zip(x_test, y_test))
     test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)
+    
+    adv_dir = "adv_examples/{}/".format(args.train_adversarial)
+    test_path = adv_dir + "test.pth"
+
+    adv_test_data = torch.load(test_path)
+    test_robust_images = adv_test_data["adv"]
+    test_robust_labels = adv_test_data["label"]        
+    
+    print("Train Adv Attack Data: ", args.train_adversarial)
+    
+    test_robust_set = list(zip(test_robust_images,
+        test_robust_labels))
+        
+    test_robust_batches = Batches(test_robust_set, args.batch_size, shuffle=True, num_workers=4)
+    
+    
+    adv_dir = "adv_examples/{}/".format(args.test_adversarial)
+    train_path = adv_dir + "train.pth" 
+    test_path = adv_dir + "test.pth"
+    
+    adv_train_data = torch.load(train_path)
+    test_cross_robust_images_on_train = adv_train_data["adv"]
+    test_cross_robust_labels_on_train = adv_train_data["label"]
+
+    adv_test_data = torch.load(test_path)
+    test_cross_robust_images_on_test = adv_test_data["adv"]
+    test_cross_robust_labels_on_test = adv_test_data["label"]        
+    
+    print("Test Adv Attack Data: ", args.test_adversarial)
+    
+    test_cross_robust_on_train_set = list(zip(test_cross_robust_images_on_train,
+        test_cross_robust_labels_on_train))
+    
+    test_cross_robust_on_train_batches = Batches(test_cross_robust_on_train_set, args.batch_size, shuffle=True, set_random_choices=False, num_workers=4)
+    
+    test_cross_robust_on_test_set = list(zip(test_cross_robust_images_on_test,
+        test_cross_robust_labels_on_test))
+        
+    test_cross_robust_on_test_batches = Batches(test_cross_robust_on_test_set, args.batch_size, shuffle=True, num_workers=4)
 
 
     # Set perturbations
@@ -309,47 +339,19 @@ def main():
 
 
     # Set models
-    if args.model == 'VGG':
-        model = VGG('VGG19')
-    elif args.model == 'ResNet18':
-        model = ResNet18()
-    elif args.model == 'GoogLeNet':
-        model = GoogLeNet()
-    elif args.model == 'DenseNet121':    
-        model = DenseNet121()
-    elif args.model == 'DenseNet201':    
-        model = DenseNet201()
-    elif args.model == 'ResNeXt29':
-        model = ResNeXt29_2x64d()
-    elif args.model == 'ResNeXt29L':
-        model = ResNeXt29_32x4d()
-    elif args.model == 'MobileNet':
-        model = MobileNet()
-    elif args.model == 'MobileNetV2':
-        model = MobileNetV2()
-    elif args.model == 'DPN26':
-        model = DPN26()
-    elif args.model == 'DPN92':
-        model = DPN92()
-    elif args.model == 'ShuffleNetG2':
-        model = ShuffleNetG2()
-    elif args.model == 'SENet18':
-        model = SENet18()
-    elif args.model == 'ShuffleNetV2':
-        model = ShuffleNetV2(1)
-    elif args.model == 'EfficientNetB0':
-        model = EfficientNetB0()
-    elif args.model == 'PNASNetA':
-        model = PNASNetA()
-    elif args.model == 'RegNetX':
-        model = RegNetX_200MF()
-    elif args.model == 'RegNetLX':
-        model = RegNetX_400MF()
-    elif args.model == 'PreActResNet50':
-        model = PreActResNet50()
-    elif args.model == 'PreActResNet18':
-        model = PreActResNet18(normalize_only_FN=args.use_FNonly, normalize=args.use_FNandWN, scale=args.s_FN,
-            activation=args.activation, softplus_beta=args.softplus_beta)
+    model = None
+    if args.model == "resnet18" :
+        model = resnet18(pretrained=True)
+    elif args.model == "resnet20" :
+        model = resnet20()
+    elif args.model == "vgg16bn" :
+        model = vgg16_bn(pretrained=True)
+    elif args.model == "densenet121" :
+        model = densenet121(pretrained=True)
+    elif args.model == "googlenet" :
+        model = googlenet(pretrained=True)
+    elif args.model == "inceptionv3" :
+        model = inception_v3(pretrained=True)
     elif args.model == 'WideResNet':
         model = WideResNet(34, 10, widen_factor=10, dropRate=0.0, normalize=args.use_FNandWN,
             activation=args.activation, softplus_beta=args.softplus_beta)
@@ -359,7 +361,6 @@ def main():
     else:
         raise ValueError("Unknown model")
 
-#     model = nn.DataParallel(model).cuda()
     model.cuda()
     model.train()
 
@@ -523,15 +524,18 @@ def main():
             best_val_robust_acc = torch.load(os.path.join(args.fname, f'model_val.pth'))['val_robust_acc']
     else:
         start_epoch = 0
+        
+    if args.best_model:
+        logger.info(f'Run using the best model')
+        model.load_state_dict(torch.load(os.path.join(args.fname, f'model_best.pth'))["state_dict"])
 
     if args.eval:
-        if not args.resume:
-            logger.info("No model loaded to evaluate, specify with --resume FNAME")
-            return
         logger.info("[Evaluation mode]")
 
-        # Evaluate on test data
+        
+    # Evaluate on test data
     model.eval()
+    
     test_loss = 0
     test_acc = 0
     test_n = 0
@@ -552,7 +556,8 @@ def main():
     for i, batch in enumerate(test_batches):
         X, y = batch['input'], batch['target']
 
-        clean_input = normalize(X)
+#         clean_input = normalize(X)
+        clean_input = X
         output = model(clean_input)
         loss = criterion(output, y)
 
@@ -561,7 +566,8 @@ def main():
         test_n += y.size(0)
 
     for i, batch in enumerate(test_robust_batches):
-        adv_input = normalize(batch['input'])
+#         adv_input = normalize(batch['input'])
+        adv_input = batch['input']
         y = batch['target']
 
         robust_output = model(adv_input)
@@ -571,8 +577,9 @@ def main():
         test_robust_acc += (robust_output.max(1)[1] == y).sum().item()
         test_robust_n += y.size(0)
 
-    for i, batch in enumerate(test_cross_robust_test_batches):
-        adv_input = normalize(batch['input'])
+    for i, batch in enumerate(test_cross_robust_on_test_batches):
+#         adv_input = normalize(batch['input'])
+        adv_input = batch['input']
         y = batch['target']
 
         cross_robust_output = model(adv_input)
@@ -582,8 +589,9 @@ def main():
         test_cross_robust_test_acc += (cross_robust_output.max(1)[1] == y).sum().item()
         test_cross_robust_test_n += y.size(0)
 
-    for i, batch in enumerate(test_cross_robust_train_batches):
-        adv_input = normalize(batch['input'])
+    for i, batch in enumerate(test_cross_robust_on_train_batches):
+#         adv_input = normalize(batch['input'])
+        adv_input = batch['input']
         y = batch['target']
 
         cross_robust_output = model(adv_input)
@@ -595,14 +603,8 @@ def main():
 
     test_time = time.time()
 
-
-    # logger.info('%d \t %.1f \t  %.1f \t  %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t  %.4f \t  %.4f  %.4f \t %.4f \t  %.4f',
-    #     epoch, train_time - start_time, test_time - train_time, lr,
-    #     train_loss/train_n, train_grad/train_n, train_acc/train_n, train_robust_loss/train_n, train_robust_acc/train_n,
-    #     test_loss/test_n, test_acc/test_n, test_robust_loss/test_n, test_robust_acc/test_n)
-    logger.info('%.4f \t %.4f \t\t %.4f \t %.4f \t\t %.4f \t\t\t %.4f', 
-                train_acc/train_n,
-                train_robust_acc/train_n,
+    logger.info("Test Acc \tTest Robust Acc \tCross Robust Acc on Test \tCross Robust Acc on Train")
+    logger.info('%.4f \t\t %.4f \t\t\t %.4f \t\t\t %.4f', 
                 test_acc/test_n,
                 test_robust_acc/test_robust_n,
                 test_cross_robust_test_acc/test_cross_robust_test_n,
