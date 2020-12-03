@@ -115,8 +115,10 @@ demo/pics/*
 !notebooks/adversarial_patch/*.ipynb
 !notebooks/art_evaluations/*.ipynb
 
-cifar10/data/
+cifar10/adv_examples/
+cifar10/adv_examples_others/
+cifar10/cifar-data/
 cifar10/models/
 cifar10/trained_models/
-cifar-data/
-
+cifar10/data/
+cifar10/backup_trained_models/
