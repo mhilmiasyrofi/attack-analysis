@@ -435,102 +435,26 @@ def main():
     adv_dir = "adv_examples/{}/".format(args.adversarial_data)
     train_path = adv_dir + "train.pth" 
     test_path = adv_dir + "test.pth"
-    adv_data = torch.load(train_path)
-    train_adv_images = adv_data["adv"]
-    train_adv_labels = adv_data["label"]
-    adv_data = torch.load(test_path)
-    test_robust_images = adv_data["adv"]
-    test_robust_labels = adv_data["label"]
-
-#     adv_dir = "adv_examples/{}/".format(args.adversarial_data)
-#     train_path = adv_dir + "train.pt" 
-#     test_path = adv_dir + "test.pt"
-#     adv_data = {}
-#     adv_data["adv"], adv_data["label"] = torch.load(train_path)
-#     train_adv_images = adv_data["adv"].numpy()
-#     train_adv_labels = adv_data["label"].numpy()
-#     adv_data = {}
-#     adv_data["adv"], adv_data["label"] = torch.load(test_path)
-#     test_robust_images = adv_data["adv"].numpy()
-#     test_robust_labels = adv_data["label"].numpy()
-
     
-#     if args.adversarial_data == "pgd" :
-#         fpath = "data/pgd/"
-#         train_path = fpath + "train.pt" 
-#         test_path = fpath + "test.pt"
-#         adv_data = {}
-#         adv_data["adv"], adv_data["label"] = torch.load(train_path)
-#         train_adv_images = adv_data["adv"].numpy()
-#         train_adv_labels = adv_data["label"].numpy()
-#         adv_data = {}
-#         adv_data["adv"], adv_data["label"] = torch.load(test_path)
-#         test_robust_images = adv_data["adv"].numpy()
-#         test_robust_labels = adv_data["label"].numpy()
-#     elif args.adversarial_data == "autoattack" :
-#         fpath = "data/autoattack/"
-#         train_path = fpath + "train/standard_1_50000_eps_0.03137.pth" 
-#         test_path = fpath + "test/standard_1_10000_eps_0.03137.pth"
-#         adv_data = torch.load(train_path)
-#         train_adv_images = adv_data["adv"].numpy()
-#         train_adv_labels = adv_data["label"].numpy()
-#         adv_data = torch.load(test_path)
-#         test_robust_images = adv_data["adv"].numpy()
-#         test_robust_labels = adv_data["label"].numpy()
-#     elif args.adversarial_data == "fast-wasserstein" :
-#         raise ValueError("Unimplemented Error")
-#     elif args.adversarial_data == "ffgsm" :
-#         fpath = "data/ffgsm/"
-#         train_path = fpath + "train.pt" 
-#         test_path = fpath + "test.pt"
-#         adv_data = {}
-#         adv_data["adv"], adv_data["label"] = torch.load(train_path)
-#         train_adv_images = adv_data["adv"].numpy()
-#         train_adv_labels = adv_data["label"].numpy()
-#         adv_data = {}
-#         adv_data["adv"], adv_data["label"] = torch.load(test_path)
-#         test_robust_images = adv_data["adv"].numpy()
-#         test_robust_labels = adv_data["label"].numpy()
-#     elif args.adversarial_data == "mifgsm" :
-#         fpath = "data/mifgsm/"
-#         train_path = fpath + "train.pt" 
-#         test_path = fpath + "test.pt"
-#         adv_data = {}
-#         adv_data["adv"], adv_data["label"] = torch.load(train_path)
-#         train_adv_images = adv_data["adv"].numpy()
-#         train_adv_labels = adv_data["label"].numpy()
-#         adv_data = {}
-#         adv_data["adv"], adv_data["label"] = torch.load(test_path)
-#         test_robust_images = adv_data["adv"].numpy()
-#         test_robust_labels = adv_data["label"].numpy()
-#     elif args.adversarial_data == "apgd" :
-#         fpath = "data/apgd/"
-#         train_path = fpath + "train.pt" 
-#         test_path = fpath + "test.pt"
-#         adv_data = {}
-#         adv_data["adv"], adv_data["label"] = torch.load(train_path)
-#         train_adv_images = adv_data["adv"].numpy()
-#         train_adv_labels = adv_data["label"].numpy()
-#         adv_data = {}
-#         adv_data["adv"], adv_data["label"] = torch.load(test_path)
-#         test_robust_images = adv_data["adv"].numpy()
-#         test_robust_labels = adv_data["label"].numpy()
-#     elif args.adversarial_data == "tpgd" :
-#         fpath = "data/tpgd/"
-#         train_path = fpath + "train.pt" 
-#         test_path = fpath + "test.pt"
-#         adv_data = {}
-#         adv_data["adv"], adv_data["label"] = torch.load(train_path)
-#         train_adv_images = adv_data["adv"].numpy()
-#         train_adv_labels = adv_data["label"].numpy()
-#         adv_data = {}
-#         adv_data["adv"], adv_data["label"] = torch.load(test_path)
-#         test_robust_images = adv_data["adv"].numpy()
-#         test_robust_labels = adv_data["label"].numpy()
-#     else :
-#         raise ValueError("Unknown model")
+    if args.adversarial_data in ["apgd", "autoattack", "deepfool", "fgm", "pgd", "spatialtransformation", "squareattack"] :
+        adv_train_data = torch.load(train_path)
+        train_adv_images = adv_train_data["adv"]
+        train_adv_labels = adv_train_data["label"]
+        adv_test_data = torch.load(test_path)
+        test_robust_images = adv_test_data["adv"]
+        test_robust_labels = adv_test_data["label"]        
+    elif args.adversarial_data in ["ffgsm", "mifgsm", "tpgd"] :
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        train_adv_images = adv_data["adv"].numpy()
+        train_adv_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_robust_images = adv_data["adv"].numpy()
+        test_robust_labels = adv_data["label"].numpy()
+    else :
+        raise ValueError("Unknown adversarial data")
         
-    
     print("")
     print("Train Adv Attack Data: ", args.adversarial_data)
     print("Dataset shape: ", train_adv_images.shape)
