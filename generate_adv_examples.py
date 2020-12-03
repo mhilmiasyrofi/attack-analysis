@@ -91,6 +91,19 @@ def get_args():
 if __name__ == "__main__" :
 
     args = get_args()
+    
+    dirname = "adv_examples/" + args.attack + "/"
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+    
+    train_path =  "{}train.pth".format(dirname)
+    test_path = "{}test.pth".format(dirname)
+    
+    if os.path.exists(train_path):
+        print("Adversarial examples already exist at {}".format(train_path))
+        print("Please remove it to generate the new one!")
+        sys.exit()
+    
 
     # Set seed
     np.random.seed(args.seed)
@@ -193,16 +206,14 @@ if __name__ == "__main__" :
 #         attack = (estimator=classifier, eps=epsilon)
 #     elif args.attack = "" :
 #         attack = (estimator=classifier, eps=epsilon)
-
-    dirname = "adv_examples/" + args.attack + "/"
-    if not os.path.exists(dirname):
-        os.makedirs(dirname)
         
     x_train_adv = attack.generate(x=x_train)
-    torch.save({"adv": x_train_adv, "label":y_train }, "{}train.pth".format(dirname))
+    torch.save({"adv": x_train_adv, "label":y_train }, train_path)
+    print("Adversarial examples from train data is saved at {}".format(train_path))
 
     x_test_adv = attack.generate(x=x_test)
-    torch.save({"adv": x_test_adv, "label":y_test }, "{}test.pth".format(dirname))
+    torch.save({"adv": x_test_adv, "label":y_test }, test_path)
+    print("Adversarial examples from test data is saved at {}".format(test_path))
     
     
 #     data = torch.load("_test.pth")
