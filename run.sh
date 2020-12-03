@@ -1,6 +1,10 @@
 #!/bin/bash
  
-declare -a attack=("autoattack" "apgd" "boundaryattack" "brendelbethge" "deepfool" "bim" "elasticnet" "pgd" "jsma" "shadowattack" "squareattack" "wasserstein")
+
+# declare -a attack=("autoattack" "apgd" "boundaryattack" "brendelbethge" "cw" "deepfool" "elasticnet" "fgm" "hopskipjump" "bim" "pgd" "pixelattack" "thresholdattack" "jsma" "shadowattack" "spatialtransformation" "squareattack" "universalperturbation" "wasserstein" "zoo")
+
+declare -a attack=("boundaryattack" "brendelbethge" "cw")
+
 
 # Iterate the string array using for loop
 for a in ${attack[@]}; do
