@@ -293,10 +293,20 @@ def main():
     
     adv_dir = "adv_examples/{}/".format(args.train_adversarial)
     test_path = adv_dir + "test.pth"
-
-    adv_test_data = torch.load(test_path)
-    test_robust_images = adv_test_data["adv"]
-    test_robust_labels = adv_test_data["label"]        
+    if args.train_adversarial == "original" :
+        test_robust_images = x_test
+        test_robust_labels = y_test
+    elif args.train_adversarial in ["apgd", "autoattack", "deepfool", "fgm", "pgd", "spatialtransformation", "squareattack"] :
+        adv_test_data = torch.load(test_path)
+        test_robust_images = adv_test_data["adv"]
+        test_robust_labels = adv_test_data["label"]        
+    elif args.train_adversarial in ["ffgsm", "mifgsm", "tpgd"] :
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_robust_images = adv_data["adv"].numpy()
+        test_robust_labels = adv_data["label"].numpy()
+    else :
+        raise ValueError("Unknown adversarial data")
     
     print("Train Adv Attack Data: ", args.train_adversarial)
     
@@ -310,13 +320,25 @@ def main():
     train_path = adv_dir + "train.pth" 
     test_path = adv_dir + "test.pth"
     
-    adv_train_data = torch.load(train_path)
-    test_cross_robust_images_on_train = adv_train_data["adv"]
-    test_cross_robust_labels_on_train = adv_train_data["label"]
-
-    adv_test_data = torch.load(test_path)
-    test_cross_robust_images_on_test = adv_test_data["adv"]
-    test_cross_robust_labels_on_test = adv_test_data["label"]        
+    
+    if args.test_adversarial in ["apgd", "autoattack", "bim", "cw", "deepfool", "fgsm", "pgd", "newtonfool", "jsma", "spatialtransformation", "squareattack"] :
+        adv_train_data = torch.load(train_path)
+        test_cross_robust_images_on_train = adv_train_data["adv"]
+        test_cross_robust_labels_on_train = adv_train_data["label"]
+        adv_test_data = torch.load(test_path)
+        test_cross_robust_images_on_test = adv_test_data["adv"]
+        test_cross_robust_labels_on_test = adv_test_data["label"]   
+    elif args.test_adversarial in ["ffgsm", "mifgsm", "tpgd"] :
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        test_cross_robust_images_on_train = adv_data["adv"].numpy()
+        test_cross_robust_labels_on_train = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_cross_robust_images_on_test = adv_data["adv"].numpy()
+        test_cross_robust_labels_on_test = adv_data["label"].numpy()
+    else :
+        raise ValueError("Unknown adversarial data")
     
     print("Test Adv Attack Data: ", args.test_adversarial)
     
@@ -526,8 +548,11 @@ def main():
         start_epoch = 0
         
     if args.best_model:
-        logger.info(f'Run using the best model')
-        model.load_state_dict(torch.load(os.path.join(args.fname, f'model_best.pth'))["state_dict"])
+        if args.train_adversarial == "original" :
+            logger.info(f'Run using the original model')
+        else :
+            logger.info(f'Run using the best model')
+            model.load_state_dict(torch.load(os.path.join(args.fname, f'model_best.pth'))["state_dict"])
 
     if args.eval:
         logger.info("[Evaluation mode]")
