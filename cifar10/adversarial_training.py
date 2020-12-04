@@ -229,7 +229,6 @@ def get_args():
     parser.add_argument('--lr-max', default=0.1, type=float)
     parser.add_argument('--lr-one-drop', default=0.01, type=float)
     parser.add_argument('--lr-drop-epoch', default=100, type=int)
-    parser.add_argument('--attack', default='pgd', type=str, choices=['pgd', 'fgsm', 'free', 'none'])
     parser.add_argument('--epsilon', default=8, type=int)
     parser.add_argument('--test_epsilon', default=8, type=int)
     parser.add_argument('--attack-iters', default=10, type=int)
@@ -436,7 +435,7 @@ def main():
     train_path = adv_dir + "train.pth" 
     test_path = adv_dir + "test.pth"
     
-    if args.adversarial_data in ["apgd", "autoattack", "deepfool", "fgm", "pgd", "spatialtransformation", "squareattack"] :
+    if args.adversarial_data in ["apgd", "autoattack", "bim", "cw", "deepfool", "fgsm", "pgd", "newtonfool", "jsma", "spatialtransformation", "squareattack"] :
         adv_train_data = torch.load(train_path)
         train_adv_images = adv_train_data["adv"]
         train_adv_labels = adv_train_data["label"]
