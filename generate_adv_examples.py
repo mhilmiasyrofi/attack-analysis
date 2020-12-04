@@ -79,7 +79,7 @@ def get_args():
     parser.add_argument('--model', default='resnet18')
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
     parser.add_argument('--lr-max', default=0.1, type=float)
-    parser.add_argument('--attack', default='autoattack', type=str, choices=["autoattack", "apgd", "boundaryattack", "brendelbethge", "cw", "deepfool", "elasticnet", "fgm", "hopskipjump", "bim", "pgd", "pixelattack", "thresholdattack", "jsma", "shadowattack", "spatialtransformation", "squareattack", "universalperturbation","wasserstein", "zoo"])
+    parser.add_argument('--attack', default='autoattack', type=str)
     parser.add_argument('--epsilon', default=8, type=int)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--batch-size', default=200, type=int)
@@ -170,41 +170,45 @@ if __name__ == "__main__" :
     # Step 6: Generate adversarial test examples
     epsilon = (8. / 255.)
     eps_step = (8. / 255. / 3.)
+    batch_size = 256
     
-
+    
     attack = None
     if args.attack == "autoattack" :
-        attack = AutoAttack(estimator=classifier, eps=0.3,)
+        attack = AutoAttack(estimator=classifier, eps=epsilon, eps_step=eps_step)
         # the parameter is obtained from https://github.com/fra31/auto-attack/blob/master/autoattack/autoattack.py
-    elif args.attack == "apgd" :
-        attack = AutoProjectedGradientDescent(estimator=classifier, eps=0.3)
+    elif args.attack == "autopgd" :
+        attack = AutoProjectedGradientDescent(estimator=classifier, eps=epsilon, eps_step=eps_step)
         # the parameter is obtained from https://github.com/fra31/auto-attack/blob/master/autoattack/autoattack.py
     elif args.attack == "boundaryattack" :
         attack = BoundaryAttack(estimator=classifier, targeted=False)
         # the parameter is obtained from
     elif args.attack == "brendelbethge" :
-        attack = BrendelBethgeAttack(estimator=classifier)
+        attack = BrendelBethgeAttack(estimator=classifier, batch_size=256)
         # the parameter is obtained from
     elif args.attack == "cw" :
-        attack = CarliniLInfMethod(classifier=classifier)
+        attack = CarliniL2Method(classifier=classifier)
         # the parameter is obtained from
     elif args.attack == "deepfool" :
-        attack = DeepFool(classifier=classifier, max_iter=50, epsilon=0.02)
+        attack = DeepFool(classifier=classifier, max_iter=50, epsilon=0.02, batch_size=batch_size)
         # the parameter is obtained from https://github.com/LTS4/DeepFool/blob/master/Python/deepfool.py
     elif args.attack == "elasticnet" :
-        attack = ElasticNet(classifier=classifier, beta=1e-2, max_iter=1000)
+        attack = ElasticNet(classifier=classifier, beta=1e-2, batch_size=batch_size)
         # the parameter is obtained from https://github.com/ysharma1126/EAD_Attack/blob/master/test_attack.py#L367
-    elif args.attack == "fgm" :
-        attack = FastGradientMethod(estimator=classifier, eps=epsilon)
+    elif args.attack == "fgsm" :
+        attack = FastGradientMethod(estimator=classifier, eps=epsilon, eps_step=eps_step)
         # the parameter is obtained from
     elif args.attack == "hopskipjump" :
         attack = HopSkipJump(classifier=classifier)
         # the parameter is obtained from
     elif args.attack == "bim" :
-        attack = BasicIterativeMethod(estimator=classifier)
+        attack = BasicIterativeMethod(estimator=classifier, eps=epsilon, eps_step=eps_step, batch_size=batch_size)
         # the parameter is obtained from
     elif args.attack == "pgd" :
-        attack = ProjectedGradientDescent(estimator=classifier)
+        attack = ProjectedGradientDescent(estimator=classifier, eps=epsilon, eps_step=eps_step)
+        # the parameter is obtained from
+    elif args.attack == "newtonfool" :
+        attack = NewtonFool(classifier=classifier, batch_size=batch_size)
         # the parameter is obtained from
     elif args.attack == "pixelattack" :
         attack = PixelAttack(classifier=classifier)
@@ -213,7 +217,7 @@ if __name__ == "__main__" :
         attack = ThresholdAttack(classifier=classifier)
         # the parameter is obtained from
     elif args.attack == "jsma" :
-        attack = SaliencyMapMethod(classifier=classifier)
+        attack = SaliencyMapMethod(classifier=classifier, batch_size=batch_size)
         # the parameter is obtained from
     elif args.attack == "shadowattack" :
         attack = ShadowAttack(estimator=classifier)
@@ -222,10 +226,10 @@ if __name__ == "__main__" :
         attack = SpatialTransformation(classifier=classifier)
         # the parameter is obtained from
     elif args.attack == "squareattack" :
-        attack = SquareAttack(estimator=classifier, eps=0.3)
+        attack = SquareAttack(estimator=classifier, eps=epsilon)
         # the parameter is obtained from https://github.com/fra31/auto-attack/blob/master/autoattack/autoattack.py
     elif args.attack == "universalperturbation" :
-        attack = UniversalPerturbation(classifier=classifier)
+        attack = UniversalPerturbation(classifier=classifier, eps=epsilon, batch_size=batch_size)
         # the parameter is obtained from 
     elif args.attack == "wasserstein" :
         attack = Wasserstein(estimator=classifier)
