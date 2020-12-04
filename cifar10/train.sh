@@ -1,9 +1,9 @@
 #!/bin/bash
  
 # Declare an array of string with type
-# declare -a adv=("apgd" "autoattack" "deepfool" "ffgsm" "fgm" "mifgsm" "pgd" "spatialtransformation" "squareattack" "tpgd")
+declare -a adv=("apgd" "autoattack" "bim" "cw" "deepfool" "ffgsm" "fgsm" "mifgsm" "newtonfool" "pgd" "jsma" "spatialtransformation" "squareattack" "tpgd")
 
-declare -a adv=("apgd" "autoattack" "deepfool" "ffgsm" "fgm")
+declare -a adv=("apgd" "autoattack" "deepfool" "ffgsm" "fgsm")
 
 # declare -a adv=("mifgsm" "pgd" "spatialtransformation" "squareattack" "tpgd")
 
@@ -26,7 +26,7 @@ for a in ${adv[@]}; do
 done
 
 # python adversarial_training.py --model resnet18 \
-#     --adversarial-data ffgsm \
+#     --adversarial-data cw \
 #     --lr-schedule piecewise \
 #     --norm l_inf \
 #     --epsilon 8 \
