@@ -122,3 +122,6 @@ cifar10/models/
 cifar10/trained_models/
 cifar10/data/
 cifar10/backup_trained_models/
+cifar10/Xbackup_trained_models/
+cifar10/adv_examples_0.3/
+
