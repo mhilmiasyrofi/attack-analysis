@@ -400,8 +400,6 @@ def main():
     
     x_train = (dataset['train']['data']/255.)
     x_test = (dataset['test']['data']/255.)
-    x_train = np_normalize(x_train)
-    x_test = np_normalize(x_test)
     x_train = transpose(x_train).astype(np.float32)
     x_test = transpose(x_test).astype(np.float32)
     
@@ -414,13 +412,6 @@ def main():
     train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=False, num_workers=4)
     test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)
         
-#     train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
-#         dataset['train']['labels']))
-#     train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=4)
-    
-#     test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
-#     test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)
-
     
     print("")
     print("Original Data")
@@ -682,8 +673,7 @@ def main():
     for i, batch in enumerate(test_batches):
         X, y = batch['input'], batch['target']
 
-#         clean_input = normalize(X)
-        clean_input = X
+        clean_input = normalize(X)
         output = model(clean_input)
         
         test_acc += (output.max(1)[1] == y).sum().item()
@@ -729,30 +719,26 @@ def main():
                 break
             X, y = batch['input'], batch['target']
 
-#             adv_input = normalize(adv_batch['input'])
-            adv_input = adv_batch['input']
+            adv_input = normalize(adv_batch['input'])
             adv_y = adv_batch['target']
             adv_input.requires_grad = True
             robust_output = model(adv_input)
             
             # Training losses
             if args.mixup:
-#                 clean_input = normalize(X)
-                clean_input = X
+                clean_input = normalize(X)
                 clean_input.requires_grad = True     
                 output = model(clean_input)
                 robust_loss = mixup_criterion(criterion, robust_output, y_a, y_b, lam)
 
             elif args.mixture:
-#                 clean_input = normalize(X)
-                clean_input = X
+                clean_input = normalize(X)
                 clean_input.requires_grad = True     
                 output = model(clean_input)
                 robust_loss = args.mixture_alpha * criterion(robust_output, adv_y) + (1-args.mixture_alpha) * criterion(output, y)
 
             else:
-#                 clean_input = normalize(X)
-                clean_input = X
+                clean_input = normalize(X)
                 clean_input.requires_grad = True     
                 output = model(clean_input)
                 if args.focalloss:
@@ -788,8 +774,7 @@ def main():
             opt.step()
 
             
-#             clean_input = normalize(X)
-            clean_input = X
+            clean_input = normalize(X)
             clean_input.requires_grad = True     
             output = model(clean_input)
             if args.mixup:
@@ -825,8 +810,7 @@ def main():
         for i, batch in enumerate(test_batches):
             X, y = batch['input'], batch['target']
             
-#             clean_input = normalize(X)
-            clean_input = X
+            clean_input = normalize(X)
             output = model(clean_input)
             loss = criterion(output, y)
 
@@ -835,8 +819,7 @@ def main():
             test_n += y.size(0)
             
         for i, batch in enumerate(test_robust_batches):                            
-#             adv_input = normalize(batch['input'])
-            adv_input = batch['input']
+            adv_input = normalize(batch['input'])
             y = batch['target']
 
             robust_output = model(adv_input)
@@ -848,57 +831,47 @@ def main():
 
         test_time = time.time()
 
-        if not args.eval:
-            # logger.info('%d \t %.1f \t  %.1f \t  %.4f \t %.4f \t %.4f \t %.4f \t %.4f \t  %.4f \t  %.4f  %.4f \t %.4f \t  %.4f',
-            #     epoch, train_time - start_time, test_time - train_time, lr,
-            #     train_loss/train_n, train_grad/train_n, train_acc/train_n, train_robust_loss/train_n, train_robust_acc/train_n,
-            #     test_loss/test_n, test_acc/test_n, test_robust_loss/test_n, test_robust_acc/test_n)
-            logger.info('%d \t %.4f \t %.4f \t\t %.4f \t %.4f',
-                epoch+1, train_acc/train_n, train_robust_acc/train_n, test_acc/test_n, test_robust_acc/test_robust_n)
 
-            # Save results
-            train_loss_record.append(train_loss/train_n)
-            train_acc_record.append(train_acc/train_n)
-            train_robust_loss_record.append(train_robust_loss/train_n)
-            train_robust_acc_record.append(train_robust_acc/train_n)
-            
-            np.savetxt(args.fname+'/train_loss_record.txt', np.array(train_loss_record))
-            np.savetxt(args.fname+'/train_acc_record.txt', np.array(train_acc_record))
-            np.savetxt(args.fname+'/train_robust_loss_record.txt', np.array(train_robust_loss_record))
-            np.savetxt(args.fname+'/train_robust_acc_record.txt', np.array(train_robust_acc_record))
-            
-            test_loss_record.append(test_loss/train_n)
-            test_acc_record.append(test_acc/train_n)
-            test_robust_loss_record.append(test_robust_loss/train_n)
-            test_robust_acc_record.append(test_robust_acc/train_n)
-            
-            np.savetxt(args.fname+'/test_loss_record.txt', np.array(test_loss_record))
-            np.savetxt(args.fname+'/test_acc_record.txt', np.array(test_acc_record))
-            np.savetxt(args.fname+'/test_robust_loss_record.txt', np.array(test_robust_loss_record))
-            np.savetxt(args.fname+'/test_robust_acc_record.txt', np.array(test_robust_acc_record))
-            
-            # save checkpoint
-            if epoch > 99 or (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
-                torch.save(model.state_dict(), os.path.join(args.fname, f'model_{epoch}.pth'))
-                torch.save(opt.state_dict(), os.path.join(args.fname, f'opt_{epoch}.pth'))
 
-            # save best
-            if test_robust_acc/test_n > best_test_robust_acc:
-                torch.save({
-                        'state_dict':model.state_dict(),
-                        'test_robust_acc':test_robust_acc/test_n,
-                        'test_robust_loss':test_robust_loss/test_n,
-                        'test_loss':test_loss/test_n,
-                        'test_acc':test_acc/test_n,
-                    }, os.path.join(args.fname, f'model_best.pth'))
-                best_test_robust_acc = test_robust_acc/test_n
-        else:
-            logger.info('%d \t %.1f \t \t %.1f \t \t %.4f \t %.4f \t %.4f \t %.4f \t \t %.4f \t \t %.4f \t %.4f \t %.4f \t \t %.4f',
-                epoch, train_time - start_time, test_time - train_time, -1,
-                -1, -1, -1, -1,
-                test_loss/test_n, test_acc/test_n, test_robust_loss/test_n, test_robust_acc/test_n)
-            return
+        logger.info('%d \t %.4f \t %.4f \t\t %.4f \t %.4f',
+            epoch+1, train_acc/train_n, train_robust_acc/train_n, test_acc/test_n, test_robust_acc/test_robust_n)
 
+        # Save results
+        train_loss_record.append(train_loss/train_n)
+        train_acc_record.append(train_acc/train_n)
+        train_robust_loss_record.append(train_robust_loss/train_n)
+        train_robust_acc_record.append(train_robust_acc/train_n)
+
+        np.savetxt(args.fname+'/train_loss_record.txt', np.array(train_loss_record))
+        np.savetxt(args.fname+'/train_acc_record.txt', np.array(train_acc_record))
+        np.savetxt(args.fname+'/train_robust_loss_record.txt', np.array(train_robust_loss_record))
+        np.savetxt(args.fname+'/train_robust_acc_record.txt', np.array(train_robust_acc_record))
+
+        test_loss_record.append(test_loss/train_n)
+        test_acc_record.append(test_acc/train_n)
+        test_robust_loss_record.append(test_robust_loss/train_n)
+        test_robust_acc_record.append(test_robust_acc/train_n)
+
+        np.savetxt(args.fname+'/test_loss_record.txt', np.array(test_loss_record))
+        np.savetxt(args.fname+'/test_acc_record.txt', np.array(test_acc_record))
+        np.savetxt(args.fname+'/test_robust_loss_record.txt', np.array(test_robust_loss_record))
+        np.savetxt(args.fname+'/test_robust_acc_record.txt', np.array(test_robust_acc_record))
+
+        # save checkpoint
+        if epoch > 99 or (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
+            torch.save(model.state_dict(), os.path.join(args.fname, f'model_{epoch}.pth'))
+            torch.save(opt.state_dict(), os.path.join(args.fname, f'opt_{epoch}.pth'))
+
+        # save best
+        if test_robust_acc/test_n > best_test_robust_acc:
+            torch.save({
+                    'state_dict':model.state_dict(),
+                    'test_robust_acc':test_robust_acc/test_n,
+                    'test_robust_loss':test_robust_loss/test_n,
+                    'test_loss':test_loss/test_n,
+                    'test_acc':test_acc/test_n,
+                }, os.path.join(args.fname, f'model_best.pth'))
+            best_test_robust_acc = test_robust_acc/test_n
 
 if __name__ == "__main__":
     main()
