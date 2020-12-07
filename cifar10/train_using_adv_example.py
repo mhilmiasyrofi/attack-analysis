@@ -224,7 +224,7 @@ def get_args():
     parser.add_argument('--train-adversarial', default='autoattack')
     parser.add_argument('--test-adversarial', default='pgd')
     parser.add_argument('--l1', default=0, type=float)
-    parser.add_argument('--data-dir', default='../cifar-data', type=str)
+    parser.add_argument('--data-dir', default='cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
     parser.add_argument('--lr-schedule', default='piecewise', choices=['superconverge', 'piecewise', 'linear', 'piecewisesmoothed', 'piecewisezoom', 'onedrop', 'multipledecay', 'cosine', 'cyclic'])
     parser.add_argument('--lr-max', default=0.1, type=float)
