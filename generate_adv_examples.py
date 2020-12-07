@@ -41,26 +41,21 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 cifar10_mean = (0.4914, 0.4822, 0.4465) # equals np.mean(train_set.train_data, axis=(0,1,2))/255
 cifar10_std = (0.2471, 0.2435, 0.2616) # equals np.std(train_set.train_data, axis=(0,1,2))/255
 
-mu = torch.tensor(cifar10_mean).view(3,1,1).cuda()
-std = torch.tensor(cifar10_std).view(3,1,1).cuda()
-
-def normalise(x, mean=cifar10_mean, std=cifar10_std):
-    x, mean, std = [np.array(a, np.float32) for a in (x, mean, std)]
-    x -= mean*255
-    x *= 1.0/(255*std)
-    return x
-
 def pad(x, border=4):
     return np.pad(x, [(0, 0), (border, border), (border, border), (0, 0)], mode='reflect')
 
 def normalize(X):
-    return (X - mu)/std
+    return transpose(_normalize(inverse_transpose(X))).astype(np.float32)
 
-def np_normalize(x, mean=cifar10_mean, std=cifar10_std):
-    return (x - mean)/std
+def _normalize(X, mean=cifar10_mean, std=cifar10_std):
+    return (X - mean)/std
 
 def transpose(x, source='NHWC', target='NCHW'):
     return x.transpose([source.index(d) for d in target]) 
+
+def inverse_transpose(x, source='NCHW', target='NHWC'):
+    return x.transpose([source.index(d) for d in target]) 
+
 
 #####################
 ## dataset
@@ -114,20 +109,12 @@ if __name__ == "__main__" :
     dataset = cifar10(args.data_dir)
     x_train = (dataset['train']['data']/255.)
     x_test = (dataset['test']['data']/255.)
-    x_train = np_normalize(x_train)
-    x_test = np_normalize(x_test)
     x_train = transpose(x_train).astype(np.float32)
     x_test = transpose(x_test).astype(np.float32)
     
     y_train = dataset['train']['labels']
     y_test = dataset['test']['labels']
     
-#     print("train shape: ", x_train.shape)
-#     print("test shape: ", x_test.shape)
-#     print("y train shape: ", y_train.shape)
-#     print("y test shape: ", y_test.shape)
-#     print(y_test)
-
     # Step 2: Load the pretrained model
 
     model = resnet18(pretrained=True)
@@ -136,8 +123,6 @@ if __name__ == "__main__" :
     
     # Step 2a: Define the loss function and the optimizer
     criterion = nn.CrossEntropyLoss()
-#     lr_max = 0.1
-#     weight_decay = 5e-4
     lr_max = 1e-2
     weight_decay = 1e-2
     params = model.parameters()
@@ -145,8 +130,6 @@ if __name__ == "__main__" :
     
     min_pixel_value=0
     max_pixel_value=1
-#     print("min_pixel_value: ", min_pixel_value)
-#     print("max_pixel_value: ", max_pixel_value)
 
 
     # Step 3: Create the ART classifier
@@ -161,8 +144,10 @@ if __name__ == "__main__" :
     )
     
     # Step 5: Evaluate the ART classifier on benign test examples
+    
+    normalized_x_test = normalize(x_test)
 
-    predictions = classifier.predict(x_test)
+    predictions = classifier.predict(normalized_x_test)
     accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
 #     accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
     print("=== Accuracy on benign test examples: {}%".format(accuracy * 100))
@@ -172,13 +157,15 @@ if __name__ == "__main__" :
     eps_step = (8. / 255. / 3.)
     batch_size = 256
     
+    print("Epsilon: ", epsilon)
+    
     
     attack = None
     if args.attack == "autoattack" :
-        attack = AutoAttack(estimator=classifier, eps=epsilon, eps_step=eps_step)
+        attack = AutoAttack(estimator=classifier, eps=epsilon, eps_step=eps_step, batch_size=batch_size)
         # the parameter is obtained from https://github.com/fra31/auto-attack/blob/master/autoattack/autoattack.py
     elif args.attack == "autopgd" :
-        attack = AutoProjectedGradientDescent(estimator=classifier, eps=epsilon, eps_step=eps_step)
+        attack = AutoProjectedGradientDescent(estimator=classifier, eps=epsilon, eps_step=0.75, batch_size=batch_size)
         # the parameter is obtained from https://github.com/fra31/auto-attack/blob/master/autoattack/autoattack.py
     elif args.attack == "boundaryattack" :
         attack = BoundaryAttack(estimator=classifier, targeted=False)
@@ -196,7 +183,7 @@ if __name__ == "__main__" :
         attack = ElasticNet(classifier=classifier, beta=1e-2, batch_size=batch_size)
         # the parameter is obtained from https://github.com/ysharma1126/EAD_Attack/blob/master/test_attack.py#L367
     elif args.attack == "fgsm" :
-        attack = FastGradientMethod(estimator=classifier, eps=epsilon, eps_step=eps_step)
+        attack = FastGradientMethod(estimator=classifier, eps=epsilon)
         # the parameter is obtained from
     elif args.attack == "hopskipjump" :
         attack = HopSkipJump(classifier=classifier)
@@ -205,7 +192,7 @@ if __name__ == "__main__" :
         attack = BasicIterativeMethod(estimator=classifier, eps=epsilon, eps_step=eps_step, batch_size=batch_size)
         # the parameter is obtained from
     elif args.attack == "pgd" :
-        attack = ProjectedGradientDescent(estimator=classifier, eps=epsilon, eps_step=eps_step)
+        attack = ProjectedGradientDescentPyTorch(estimator=classifier, eps=epsilon, eps_step=2./255., max_iter=40, batch_size=batch_size)
         # the parameter is obtained from
     elif args.attack == "newtonfool" :
         attack = NewtonFool(classifier=classifier, batch_size=batch_size)
@@ -226,13 +213,13 @@ if __name__ == "__main__" :
         attack = SpatialTransformation(classifier=classifier)
         # the parameter is obtained from
     elif args.attack == "squareattack" :
-        attack = SquareAttack(estimator=classifier, eps=epsilon)
+        attack = SquareAttack(estimator=classifier, eps=epsilon, batch_size=batch_size)
         # the parameter is obtained from https://github.com/fra31/auto-attack/blob/master/autoattack/autoattack.py
     elif args.attack == "universalperturbation" :
         attack = UniversalPerturbation(classifier=classifier, eps=epsilon, batch_size=batch_size)
         # the parameter is obtained from 
     elif args.attack == "wasserstein" :
-        attack = Wasserstein(estimator=classifier)
+        attack = Wasserstein(estimator=classifier, batch_size=1024)
         # the parameter is obtained from
     elif args.attack == "zoo" :
         attack = ZooAttack(classifier=classifier)
@@ -241,21 +228,18 @@ if __name__ == "__main__" :
         raise ValueError("Unknown model")
 
         
-    x_train_adv = attack.generate(x=x_train)
+    x_train_adv = attack.generate(x=x_train, y=y_train)
     torch.save({"adv": x_train_adv, "label":y_train }, train_path)
     print("Adversarial examples from train data is saved at {}".format(train_path))
 
-    x_test_adv = attack.generate(x=x_test)
+    x_test_adv = attack.generate(x=x_test, y=y_test)
     torch.save({"adv": x_test_adv, "label":y_test }, test_path)
     print("Adversarial examples from test data is saved at {}".format(test_path))
     
-    
-#     data = torch.load("_test.pth")
-#     x_test_adv = data["adv"]
 
-#     # Step 7: Evaluate the ART classifier on adversarial test examples
+    # Step 7: Evaluate the ART classifier on adversarial test examples
 
-#     predictions = classifier.predict(x_test_adv)
-#     accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
+    predictions = classifier.predict(normalize(x_test_adv))
+    accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
 # #     accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
-#     print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))
+    print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))
