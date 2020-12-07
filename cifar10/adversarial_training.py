@@ -17,6 +17,8 @@ from models import *
 
 from utils import *
 
+from constant import TOOLBOX_ADV_ATTACK_LIST
+
 mu = torch.tensor(cifar10_mean).view(3,1,1).cuda()
 std = torch.tensor(cifar10_std).view(3,1,1).cuda()
 
@@ -221,7 +223,7 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts,
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
-    parser.add_argument('--adversarial-data', default='autoattack')
+    parser.add_argument('--attack', default='pgd')
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--data-dir', default='cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
@@ -308,7 +310,7 @@ def get_args():
     return parser.parse_args()
 
 def get_auto_fname(args):
-    names = args.model + '_'  + args.adversarial_data + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+    names = args.model + '_'  + args.attack + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
     # Group 1
     if args.earlystopPGD:
         names = names + '_earlystopPGD' + str(args.earlystopPGDepoch1) + str(args.earlystopPGDepoch2)
@@ -354,8 +356,8 @@ def get_auto_fname(args):
         names = names + '_mixup' + str(args.mixup_alpha)
     if args.cutout:
         names = names + '_cutout' + str(args.cutout_len)
-    if args.attack != 'pgd':
-        names = names + '_' + args.attack
+#     if args.attack != 'pgd':
+#         names = names + '_' + args.attack
 
     print('File name: ', names)
     return names
@@ -431,18 +433,19 @@ def main():
     test_robust_images = None
     test_robust_labels = None
 
-    adv_dir = "adv_examples/{}/".format(args.adversarial_data)
+    adv_dir = "adv_examples/{}/".format(args.attack)
     train_path = adv_dir + "train.pth" 
     test_path = adv_dir + "test.pth"
     
-    if args.adversarial_data in ["apgd", "autoattack", "bim", "cw", "deepfool", "fgsm", "pgd", "newtonfool", "jsma", "spatialtransformation", "squareattack"] :
+
+    if args.attack in TOOLBOX_ADV_ATTACK_LIST :
         adv_train_data = torch.load(train_path)
         train_adv_images = adv_train_data["adv"]
         train_adv_labels = adv_train_data["label"]
         adv_test_data = torch.load(test_path)
         test_robust_images = adv_test_data["adv"]
         test_robust_labels = adv_test_data["label"]        
-    elif args.adversarial_data in ["ffgsm", "mifgsm", "tpgd"] :
+    elif args.attack in ["ffgsm", "mifgsm", "tpgd"] :
         adv_data = {}
         adv_data["adv"], adv_data["label"] = torch.load(train_path)
         train_adv_images = adv_data["adv"].numpy()
@@ -455,7 +458,7 @@ def main():
         raise ValueError("Unknown adversarial data")
         
     print("")
-    print("Train Adv Attack Data: ", args.adversarial_data)
+    print("Train Adv Attack Data: ", args.attack)
     print("Dataset shape: ", train_adv_images.shape)
     print("Dataset type: ", type(train_adv_images))
     print("Label shape: ", len(train_adv_labels))
@@ -541,6 +544,7 @@ def main():
     elif args.attack == 'fgsm' and args.fgsm_init == 'previous':
         delta = torch.zeros(args.batch_size, 3, 32, 32).cuda()
         delta.requires_grad = True
+
 
     if args.attack == 'free':
         epochs = int(math.ceil(args.epochs / args.attack_iters))

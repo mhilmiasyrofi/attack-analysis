@@ -1,17 +1,20 @@
 #!/bin/bash
  
 # Declare an array of string with type
-declare -a adv=("apgd" "autoattack" "bim" "cw" "deepfool" "ffgsm" "fgsm" "mifgsm" "newtonfool" "pgd" "jsma" "spatialtransformation" "squareattack" "tpgd")
-
-declare -a adv=("apgd" "autoattack" "deepfool" "ffgsm" "fgsm")
+# declare -a adv=("autoattack" "bim" "cw" "deepfool" "ffgsm" "fgsm" "mifgsm" "newtonfool" "pgd" "jsma" "spatialtransformation" "squareattack" "tpgd")
 
 # declare -a adv=("mifgsm" "pgd" "spatialtransformation" "squareattack" "tpgd")
+
+
+# declare -a adv=("autoattack" "autopgd" "bim" "cw" "deepfool")
+
+declare -a adv=("elasticnet" "fgsm" "jsma" "newtonfool" "pgd" "squareattack")
 
 
 # Iterate the string array using for loop
 for a in ${adv[@]}; do
     python adversarial_training.py --model resnet18 \
-        --adversarial-data $a \
+        --attack $a \
         --lr-schedule piecewise \
         --norm l_inf \
         --epsilon 8 \
