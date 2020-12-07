@@ -110,10 +110,10 @@ demo/pics/*
 .idea/
 
 # Exceptions for notebooks/
-!notebooks/*.ipynb
-!notebooks/adaptive_defence_evaluations/*.ipynb
-!notebooks/adversarial_patch/*.ipynb
-!notebooks/art_evaluations/*.ipynb
+# !notebooks/*.ipynb
+# !notebooks/adaptive_defence_evaluations/*.ipynb
+# !notebooks/adversarial_patch/*.ipynb
+# !notebooks/art_evaluations/*.ipynb
 
 cifar10/adv_examples/
 cifar10/adv_examples_others/
