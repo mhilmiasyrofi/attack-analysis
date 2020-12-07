@@ -154,7 +154,6 @@ if __name__ == "__main__" :
 
     # Step 6: Generate adversarial test examples
     epsilon = (8. / 255.)
-    eps_step = (8. / 255. / 3.)
     batch_size = 256
     
     print("Epsilon: ", epsilon)
@@ -162,7 +161,7 @@ if __name__ == "__main__" :
     
     attack = None
     if args.attack == "autoattack" :
-        attack = AutoAttack(estimator=classifier, eps=epsilon, eps_step=eps_step, batch_size=batch_size)
+        attack = AutoAttack(estimator=classifier, eps=epsilon, eps_step=0.75, batch_size=batch_size)
         # the parameter is obtained from https://github.com/fra31/auto-attack/blob/master/autoattack/autoattack.py
     elif args.attack == "autopgd" :
         attack = AutoProjectedGradientDescent(estimator=classifier, eps=epsilon, eps_step=0.75, batch_size=batch_size)
@@ -174,7 +173,7 @@ if __name__ == "__main__" :
         attack = BrendelBethgeAttack(estimator=classifier, batch_size=256)
         # the parameter is obtained from
     elif args.attack == "cw" :
-        attack = CarliniL2Method(classifier=classifier)
+        attack = CarliniLInfMethod(classifier=classifier, eps=epsilon, batch_size=batch_size)
         # the parameter is obtained from
     elif args.attack == "deepfool" :
         attack = DeepFool(classifier=classifier, max_iter=50, epsilon=0.02, batch_size=batch_size)
@@ -189,11 +188,12 @@ if __name__ == "__main__" :
         attack = HopSkipJump(classifier=classifier)
         # the parameter is obtained from
     elif args.attack == "bim" :
-        attack = BasicIterativeMethod(estimator=classifier, eps=epsilon, eps_step=eps_step, batch_size=batch_size)
-        # the parameter is obtained from
+        attack = BasicIterativeMethod(estimator=classifier, eps=epsilon, eps_step=1./255., batch_size=batch_size)
+        # the parameter is obtained from https://arxiv.org/pdf/1607.02533.pdf
+        # "we changed the value of each pixel only by 1 on each step."
     elif args.attack == "pgd" :
         attack = ProjectedGradientDescentPyTorch(estimator=classifier, eps=epsilon, eps_step=2./255., max_iter=40, batch_size=batch_size)
-        # the parameter is obtained from
+        # the parameter is obtained from 
     elif args.attack == "newtonfool" :
         attack = NewtonFool(classifier=classifier, batch_size=batch_size)
         # the parameter is obtained from
@@ -210,13 +210,13 @@ if __name__ == "__main__" :
         attack = ShadowAttack(estimator=classifier)
         # the parameter is obtained from
     elif args.attack == "spatialtransformation" :
-        attack = SpatialTransformation(classifier=classifier)
+        attack = SpatialTransformation(classifier=classifier, max_translation=3, max_rotation=30, batch_size=batch_size)
         # the parameter is obtained from
     elif args.attack == "squareattack" :
         attack = SquareAttack(estimator=classifier, eps=epsilon, batch_size=batch_size)
         # the parameter is obtained from https://github.com/fra31/auto-attack/blob/master/autoattack/autoattack.py
-    elif args.attack == "universalperturbation" :
-        attack = UniversalPerturbation(classifier=classifier, eps=epsilon, batch_size=batch_size)
+#     elif args.attack == "universalperturbation" :
+#         attack = UniversalPerturbation(classifier=classifier, batch_size=batch_size)
         # the parameter is obtained from 
     elif args.attack == "wasserstein" :
         attack = Wasserstein(estimator=classifier, batch_size=1024)

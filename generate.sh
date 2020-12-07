@@ -5,11 +5,11 @@
 
 # declare -a attack=("boundaryattack" "brendelbethge" "cw")
 
-# declare -a attack=("cw" "bim" "newtonfool" "universalperturbation")
-# declare -a attack=("autoattack" "autopgd" "fgsm" "pgd" "squareattack")
-declare -a attack=("fgsm" "pgd" "squareattack")
 
-# cw fgsm bim pgd newtonfool squareattack universalperturbation
+# declare -a attack=("autoattack" "autopgd" "fgsm" "pgd" "squareattack")
+# declare -a attack=("autopgd" "squareattack" "autoattack")
+
+declare -a attack=("deepfool" "newtonfool" "spatialtransformation" "cw" "bim" "jsma" "elasticnet" "universalperturbation")
 
 # Iterate the string array using for loop
 for a in ${attack[@]}; do
