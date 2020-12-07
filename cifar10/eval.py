@@ -17,6 +17,8 @@ from models import *
 
 from utils import *
 
+from constant import TOOLBOX_ADV_ATTACK_LIST
+
 mu = torch.tensor(cifar10_mean).view(3,1,1).cuda()
 std = torch.tensor(cifar10_std).view(3,1,1).cuda()
 
@@ -241,8 +243,8 @@ def get_auto_fname(args):
         names = names + '_mixup' + str(args.mixup_alpha)
     if args.cutout:
         names = names + '_cutout' + str(args.cutout_len)
-    if args.attack != 'pgd':
-        names = names + '_' + args.attack
+#     if args.attack != 'pgd':
+#         names = names + '_' + args.attack
 
     print('File name: ', names)
     return names
@@ -296,7 +298,7 @@ def main():
     if args.train_adversarial == "original" :
         test_robust_images = x_test
         test_robust_labels = y_test
-    elif args.train_adversarial in ["apgd", "autoattack", "deepfool", "fgm", "pgd", "spatialtransformation", "squareattack"] :
+    elif args.train_adversarial in TOOLBOX_ADV_ATTACK_LIST :
         adv_test_data = torch.load(test_path)
         test_robust_images = adv_test_data["adv"]
         test_robust_labels = adv_test_data["label"]        
@@ -321,7 +323,7 @@ def main():
     test_path = adv_dir + "test.pth"
     
     
-    if args.test_adversarial in ["apgd", "autoattack", "bim", "cw", "deepfool", "fgsm", "pgd", "newtonfool", "jsma", "spatialtransformation", "squareattack"] :
+    if args.test_adversarial in TOOLBOX_ADV_ATTACK_LIST :
         adv_train_data = torch.load(train_path)
         test_cross_robust_images_on_train = adv_train_data["adv"]
         test_cross_robust_labels_on_train = adv_train_data["label"]
