@@ -5,7 +5,9 @@
 
 # declare -a attack=("boundaryattack" "brendelbethge" "cw")
 
-declare -a attack=("cw" "fgsm" "pgd" "squareattack" "bim" "newtonfool" "universalperturbation")
+# declare -a attack=("cw" "bim" "newtonfool" "universalperturbation")
+# declare -a attack=("autoattack" "autopgd" "fgsm" "pgd" "squareattack")
+declare -a attack=("fgsm" "pgd" "squareattack")
 
 # cw fgsm bim pgd newtonfool squareattack universalperturbation
 
