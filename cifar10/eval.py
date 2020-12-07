@@ -249,9 +249,6 @@ def get_auto_fname(args):
     print('File name: ', names)
     return names
 
-def np_normalize(x, mean=cifar10_mean, std=cifar10_std):
-    return (x - mean)/std
-
 def main():
     args = get_args()
     if args.fname == 'auto':
@@ -286,7 +283,6 @@ def main():
     dataset = cifar10(args.data_dir)
     
     x_test = (dataset['test']['data']/255.)
-    x_test = np_normalize(x_test)
     x_test = transpose(x_test).astype(np.float32)
     y_test = dataset['test']['labels']
     
@@ -583,8 +579,7 @@ def main():
     for i, batch in enumerate(test_batches):
         X, y = batch['input'], batch['target']
 
-#         clean_input = normalize(X)
-        clean_input = X
+        clean_input = normalize(X)
         output = model(clean_input)
         loss = criterion(output, y)
 
@@ -593,8 +588,7 @@ def main():
         test_n += y.size(0)
 
     for i, batch in enumerate(test_robust_batches):
-#         adv_input = normalize(batch['input'])
-        adv_input = batch['input']
+        adv_input = normalize(batch['input'])
         y = batch['target']
 
         robust_output = model(adv_input)
@@ -605,8 +599,7 @@ def main():
         test_robust_n += y.size(0)
 
     for i, batch in enumerate(test_cross_robust_on_test_batches):
-#         adv_input = normalize(batch['input'])
-        adv_input = batch['input']
+        adv_input = normalize(batch['input'])
         y = batch['target']
 
         cross_robust_output = model(adv_input)
@@ -617,8 +610,7 @@ def main():
         test_cross_robust_test_n += y.size(0)
 
     for i, batch in enumerate(test_cross_robust_on_train_batches):
-#         adv_input = normalize(batch['input'])
-        adv_input = batch['input']
+        adv_input = normalize(batch['input'])
         y = batch['target']
 
         cross_robust_output = model(adv_input)

@@ -6,9 +6,9 @@
 # declare -a adv=("mifgsm" "pgd" "spatialtransformation" "squareattack" "tpgd")
 
 
-# declare -a adv=("autoattack" "autopgd" "bim" "cw" "deepfool")
+declare -a adv=("autoattack" "autopgd" "squareattack")
 
-declare -a adv=("elasticnet" "fgsm" "jsma" "newtonfool" "pgd" "squareattack")
+# declare -a adv=("elasticnet" "fgsm" "jsma" "newtonfool" "pgd" "squareattack")
 
 
 # Iterate the string array using for loop
@@ -29,11 +29,11 @@ for a in ${adv[@]}; do
 done
 
 # python adversarial_training.py --model resnet18 \
-#     --adversarial-data cw \
+#     --attack pgd \
 #     --lr-schedule piecewise \
 #     --norm l_inf \
 #     --epsilon 8 \
-#     --epochs 3 \
+#     --epochs 110 \
 #     --attack-iters 10 \
 #     --pgd-alpha 2 \
 #     --fname auto \
