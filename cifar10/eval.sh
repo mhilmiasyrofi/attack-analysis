@@ -1,17 +1,12 @@
-# declare -a train=("apgd" "autoattack" "bim" "cw" "deepfool" "ffgsm" "fgsm" "mifgsm" "pgd" "newtonfool" "jsma" "spatialtransformation" "squareattack" "tpgd")
+# declare -a train=("original" "autoattack" "autopgd" "bim" "cw" "deepfool")
+
+# declare -a train=("fgsm" "jsma"  "newtonfool" "pixelattack" "pgd" "squareattack")
+
+# declare -a test=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "jsma"  "newtonfool" "pixelattack" "pgd" "squareattack")
 
 
-# declare -a train=("original")
-
-# declare -a test=("apgd" "autoattack" "bim" "cw" "deepfool" "ffgsm" "fgsm" "mifgsm" "pgd" "newtonfool" "jsma" "spatialtransformation" "squareattack" "tpgd")
-
-# declare -a train=("original" "autoattack" "autopgd" "bim" "cw" "deepfool" "elasticnet" "fgsm" "jsma"  "newtonfool" "pgd" "squareattack")
-
-declare -a train=("original" "autoattack" "autopgd" "bim" "cw" "deepfool" )
-# declare -a train=("elasticnet" "fgsm" "jsma"  "newtonfool" "pgd" "squareattack")
-
-declare -a test=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "elasticnet" "jsma"  "newtonfool" "pgd" "squareattack")
-
+declare -a train=("original" "autoattack" "autopgd" "fgsm" "pgd" "squareattack")
+declare -a test=("autoattack" "autopgd" "fgsm" "pgd" "squareattack")
 
 for tr in ${train[@]}; do
     for ts in ${test[@]}; do

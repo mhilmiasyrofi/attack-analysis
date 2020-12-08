@@ -6,9 +6,10 @@
 # declare -a adv=("mifgsm" "pgd" "spatialtransformation" "squareattack" "tpgd")
 
 
-declare -a adv=("autoattack" "autopgd" "squareattack")
+# declare -a adv=("autoattack" "autopgd" "fgsm" "pgd" "squareattack")
 
-# declare -a adv=("elasticnet" "fgsm" "jsma" "newtonfool" "pgd" "squareattack")
+# declare -a adv=("bim" "cw" "deepfool")
+declare -a adv=("jsma" "newtonfool" "pixelattack")
 
 
 # Iterate the string array using for loop
