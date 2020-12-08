@@ -38,22 +38,25 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 ## data preprocessing
 #####################
 
-cifar10_mean = (0.4914, 0.4822, 0.4465) # equals np.mean(train_set.train_data, axis=(0,1,2))/255
-cifar10_std = (0.2471, 0.2435, 0.2616) # equals np.std(train_set.train_data, axis=(0,1,2))/255
+cifar_mu = np.ones((3, 32, 32)).astype(np.float32)
+cifar_mu[0, :, :] = 0.4914
+cifar_mu[1, :, :] = 0.4822
+cifar_mu[2, :, :] = 0.4465
+cifar_mu.astype(np.float32)
+
+# (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))
+
+cifar_std = np.ones((3, 32, 32)).astype(np.float32)
+cifar_std[0, :, :] = 0.2471
+cifar_std[1, :, :] = 0.2435
+cifar_std[2, :, :] = 0.2616
+cifar_std.astype(np.float32)
+
 
 def pad(x, border=4):
     return np.pad(x, [(0, 0), (border, border), (border, border), (0, 0)], mode='reflect')
 
-def normalize(X):
-    return transpose(_normalize(inverse_transpose(X))).astype(np.float32)
-
-def _normalize(X, mean=cifar10_mean, std=cifar10_std):
-    return (X - mean)/std
-
 def transpose(x, source='NHWC', target='NCHW'):
-    return x.transpose([source.index(d) for d in target]) 
-
-def inverse_transpose(x, source='NCHW', target='NHWC'):
     return x.transpose([source.index(d) for d in target]) 
 
 
@@ -94,10 +97,10 @@ if __name__ == "__main__" :
     train_path =  "{}train.pth".format(dirname)
     test_path = "{}test.pth".format(dirname)
     
-    if os.path.exists(train_path):
-        print("Adversarial examples already exist at {}".format(train_path))
-        print("Please remove it to generate the new one!")
-        sys.exit()
+#     if os.path.exists(train_path):
+#         print("Adversarial examples already exist at {}".format(train_path))
+#         print("Please remove it to generate the new one!")
+#         sys.exit()
     
 
     # Set seed
@@ -140,23 +143,23 @@ if __name__ == "__main__" :
         optimizer=optimizer,
         input_shape=(3, 32, 32),
         nb_classes=10,
-        preprocessing=None,
+        preprocessing=(cifar_mu, cifar_std),
     )
     
     # Step 5: Evaluate the ART classifier on benign test examples
     
-    normalized_x_test = normalize(x_test)
+#     normalized_x_test = normalize(x_test)
 
-    predictions = classifier.predict(normalized_x_test)
+    predictions = classifier.predict(x_test)
     accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
 #     accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
     print("=== Accuracy on benign test examples: {}%".format(accuracy * 100))
 
     # Step 6: Generate adversarial test examples
     epsilon = (8. / 255.)
-    batch_size = 256
+    batch_size = 512
     
-    print("Epsilon: ", epsilon)
+#     print("Epsilon: ", epsilon)
     
     
     attack = None
@@ -238,8 +241,8 @@ if __name__ == "__main__" :
     
 
     # Step 7: Evaluate the ART classifier on adversarial test examples
-
-    predictions = classifier.predict(normalize(x_test_adv))
+    
+    predictions = classifier.predict(x_test_adv)
     accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
 # #     accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
     print("Accuracy on adversarial test examples: {}%".format(accuracy * 100))
