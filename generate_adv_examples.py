@@ -157,7 +157,7 @@ if __name__ == "__main__" :
 
     # Step 6: Generate adversarial test examples
     epsilon = (8. / 255.)
-    batch_size = 512
+    batch_size = 1000
     
 #     print("Epsilon: ", epsilon)
     
