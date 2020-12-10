@@ -5,12 +5,10 @@
 
 # declare -a adv=("mifgsm" "pgd" "spatialtransformation" "squareattack" "tpgd")
 
-
-# declare -a adv=("autoattack" "autopgd" "fgsm" "pgd" "squareattack")
-
-# declare -a adv=("bim" "cw" "deepfool")
-declare -a adv=("jsma" "newtonfool" "pixelattack")
-
+# declare -a adv=("autoattack" "fgsm" "pgd" "bim" "cw")
+# declare -a adv=("autopgd" "squareattack" "jsma")
+# declare -a adv=("deepfool" "newtonfool")
+declare -a adv=("pixelattack" "spatialtransformation")
 
 # Iterate the string array using for loop
 for a in ${adv[@]}; do
@@ -25,7 +23,7 @@ for a in ${adv[@]}; do
         --fname auto \
         --optimizer 'momentum' \
         --weight_decay 5e-4 \
-        --batch-size 128 \
+        --batch-size 256 \
         --BNeval 
 done
 
