@@ -666,7 +666,7 @@ def main():
     model.cuda()
     model.eval()
     
-    # Evaluate on test data
+    # Evaluate on original test data
     test_acc = 0
     test_n = 0
     
@@ -679,8 +679,20 @@ def main():
         test_acc += (output.max(1)[1] == y).sum().item()
         test_n += y.size(0)
         
-    logger.info('Intial Accuracy on Original Test Data: %.4f', test_acc/test_n)
+    logger.info('Intial Accuracy on Original Test Data: %.4f (Test Acc)', test_acc/test_n)
     
+    test_robust_acc = 0
+    test_robust_n = 0
+        
+    for i, batch in enumerate(test_robust_batches):                            
+        adv_input = normalize(batch['input'])
+        y = batch['target']
+
+        robust_output = model(adv_input)
+        test_robust_acc += (robust_output.max(1)[1] == y).sum().item()
+        test_robust_n += y.size(0)
+    
+    logger.info('Intial Accuracy on Adversarial Test Data: %.4f (Test Robust Acc)', test_robust_acc/test_robust_n)
         
     model.train()
     
