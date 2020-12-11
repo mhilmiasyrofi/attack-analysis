@@ -426,8 +426,13 @@ class PyTorchOATClassifier(ClassGradientsMixin, ClassifierMixin, PyTorchEstimato
                 x_grad.requires_grad = True
             x_input = x_grad
 
+        val_lambda = 1.0
+        _lambda = np.expand_dims( np.repeat(5, x_input.shape[0]), axis=1 ).astype(np.uint8)
+        _lambda = self.encoding_mat[_lambda,:] 
+        _lambda = torch.from_numpy(_lambda).float().cuda()
+        idx2BN = 0
         # Run prediction
-        model_outputs = self._model(x_input)
+        model_outputs = self._model(x_input, _lambda, idx2BN)
 
         # Set where to get gradient
         if self._layer_idx_gradients >= 0:
@@ -506,9 +511,17 @@ class PyTorchOATClassifier(ClassGradientsMixin, ClassifierMixin, PyTorchEstimato
 
         # Convert the labels to Tensors
         labels_t = torch.from_numpy(y_preprocessed).to(self._device)
+        
+        batch_size = len(y_preprocessed)
+        _lambda = np.expand_dims( np.repeat(5, batch_size), axis=1 ).astype(np.uint8)
+        _lambda = self.encoding_mat[_lambda,:] 
+        _lambda = torch.from_numpy(_lambda).float().cuda()
+        idx2BN = 0
+
+        model_outputs = self._model(inputs_t, _lambda, idx2BN)
 
         # Compute the loss and return
-        model_outputs = self._model(inputs_t)
+#         model_outputs = self._model(inputs_t)
         prev_reduction = self._loss.reduction
 
         # Return individual loss values
