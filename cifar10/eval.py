@@ -259,6 +259,13 @@ def main():
 
     if not os.path.exists(args.fname):
         os.makedirs(args.fname)
+        
+    eval_dir = args.fname + '/eval/' + args.test_adversarial + "/"
+
+    if not os.path.exists(eval_dir):
+        print("Make dirs: ", eval_dir)
+        os.makedirs(eval_dir)
+    
 
     logger = logging.getLogger(__name__)
     logging.basicConfig(
@@ -266,7 +273,7 @@ def main():
         datefmt='%Y/%m/%d %H:%M:%S',
         level=logging.DEBUG,
         handlers=[
-            logging.FileHandler(os.path.join(args.fname, 'eval_{}.log'.format(args.test_adversarial))),
+            logging.FileHandler(os.path.join(eval_dir, "output.log")),
             logging.StreamHandler()
         ])
 
@@ -562,18 +569,25 @@ def main():
     test_loss = 0
     test_acc = 0
     test_n = 0
+    y_original = np.array([])
+    y_original_pred = np.array([])
 
     test_robust_loss = 0
     test_robust_acc = 0
     test_robust_n = 0
+    y_robust = np.array([])
+    y_robust_pred = np.array([])
 
     test_cross_robust_test_loss = 0
     test_cross_robust_test_acc = 0
     test_cross_robust_test_n = 0
+    y_cross_robust = np.array([])
+    y_cross_robust_pred = np.array([])
 
     test_cross_robust_train_loss = 0
     test_cross_robust_train_acc = 0
     test_cross_robust_train_n = 0
+    
 
 
     for i, batch in enumerate(test_batches):
@@ -586,6 +600,9 @@ def main():
         test_loss += loss.item() * y.size(0)
         test_acc += (output.max(1)[1] == y).sum().item()
         test_n += y.size(0)
+        
+        y_original = np.append(y_original, y.cpu().numpy())
+        y_original_pred = np.append(y_original_pred, output.max(1)[1].cpu().numpy())
 
     for i, batch in enumerate(test_robust_batches):
         adv_input = normalize(batch['input'])
@@ -597,6 +614,10 @@ def main():
         test_robust_loss += robust_loss.item() * y.size(0)
         test_robust_acc += (robust_output.max(1)[1] == y).sum().item()
         test_robust_n += y.size(0)
+        
+        y_robust = np.append(y_robust, y.cpu().numpy())
+        y_robust_pred = np.append(y_robust_pred, robust_output.max(1)[1].cpu().numpy())
+
 
     for i, batch in enumerate(test_cross_robust_on_test_batches):
         adv_input = normalize(batch['input'])
@@ -609,6 +630,10 @@ def main():
         test_cross_robust_test_acc += (cross_robust_output.max(1)[1] == y).sum().item()
         test_cross_robust_test_n += y.size(0)
 
+        y_cross_robust = np.append(y_cross_robust, y.cpu().numpy())
+        y_cross_robust_pred = np.append(y_cross_robust_pred, cross_robust_output.max(1)[1].cpu().numpy())
+
+        
     for i, batch in enumerate(test_cross_robust_on_train_batches):
         adv_input = normalize(batch['input'])
         y = batch['target']
@@ -629,7 +654,41 @@ def main():
                 test_cross_robust_test_acc/test_cross_robust_test_n,
                 test_cross_robust_train_acc/test_cross_robust_train_n)
 
+    
+    y_original = y_original.astype(np.int)
+    y_original_pred = y_original_pred.astype(np.int)
 
+    y_robust = y_robust.astype(np.int)
+    y_robust_pred = y_robust_pred.astype(np.int)
+
+    y_cross_robust = y_cross_robust.astype(np.int)
+    y_cross_robust_pred = y_cross_robust_pred.astype(np.int)
+    
+    logger.info("y_original")
+    logger.info(y_original)
+    np.savetxt(os.path.join(eval_dir, "y_original.txt"), y_original,  fmt='%i')
+    
+    logger.info("y_original_pred")
+    logger.info(y_original_pred)
+    np.savetxt(os.path.join(eval_dir, "y_original_pred.txt"), y_original_pred, fmt='%i')
+    
+    logger.info("y_robust")
+    logger.info(y_robust)
+    np.savetxt(os.path.join(eval_dir, "y_robust.txt"), y_robust, fmt='%i')
+    
+    logger.info("y_robust_pred")
+    logger.info(y_robust_pred)
+    np.savetxt(os.path.join(eval_dir, "y_robust_pred.txt"), y_robust_pred, fmt='%i')
+    
+    logger.info("y_cross_robust")
+    logger.info(y_cross_robust)
+    np.savetxt(os.path.join(eval_dir, "y_cross_robust.txt"), y_cross_robust, fmt='%i')
+    
+    
+    logger.info("y_cross_robust_pred")
+    logger.info(y_cross_robust_pred)
+    np.savetxt(os.path.join(eval_dir, "y_cross_robust_pred.txt"), y_cross_robust_pred, fmt='%i')
+    
 
 if __name__ == "__main__":
     main()
