@@ -312,13 +312,15 @@ def main():
         test_robust_labels = adv_data["label"].numpy()
     else :
         raise ValueError("Unknown adversarial data")
+        
+#     print(y_test == test_robust_labels) 
     
     print("Train Adv Attack Data: ", args.train_adversarial)
     
     test_robust_set = list(zip(test_robust_images,
         test_robust_labels))
         
-    test_robust_batches = Batches(test_robust_set, args.batch_size, shuffle=True, num_workers=4)
+    test_robust_batches = Batches(test_robust_set, args.batch_size, shuffle=False, num_workers=4)
     
     
     adv_dir = "adv_examples/{}/".format(args.test_adversarial)
@@ -350,12 +352,12 @@ def main():
     test_cross_robust_on_train_set = list(zip(test_cross_robust_images_on_train,
         test_cross_robust_labels_on_train))
     
-    test_cross_robust_on_train_batches = Batches(test_cross_robust_on_train_set, args.batch_size, shuffle=True, set_random_choices=False, num_workers=4)
+    test_cross_robust_on_train_batches = Batches(test_cross_robust_on_train_set, args.batch_size, shuffle=False, set_random_choices=False, num_workers=4)
     
     test_cross_robust_on_test_set = list(zip(test_cross_robust_images_on_test,
         test_cross_robust_labels_on_test))
         
-    test_cross_robust_on_test_batches = Batches(test_cross_robust_on_test_set, args.batch_size, shuffle=True, num_workers=4)
+    test_cross_robust_on_test_batches = Batches(test_cross_robust_on_test_set, args.batch_size, shuffle=False, num_workers=4)
 
 
     # Set perturbations
@@ -688,6 +690,10 @@ def main():
     logger.info("y_cross_robust_pred")
     logger.info(y_cross_robust_pred)
     np.savetxt(os.path.join(eval_dir, "y_cross_robust_pred.txt"), y_cross_robust_pred, fmt='%i')
+    
+#     print(y_original == y_robust)
+    
+#     print(y_cross_robust == y_robust)
     
 
 if __name__ == "__main__":
