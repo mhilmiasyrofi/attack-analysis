@@ -161,14 +161,14 @@ if __name__ == "__main__" :
     
 #     normalized_x_test = normalize(x_test)
 
-    predictions = classifier.predict(x_test)
-    accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
+#     predictions = classifier.predict(x_test)
+#     accuracy = np.sum(np.argmax(predictions, axis=1) == y_test) / len(y_test)
 #     accuracy = np.sum(np.argmax(predictions, axis=1) == np.argmax(y_test, axis=1)) / len(y_test)
-    print("=== Accuracy on benign test examples: {}%".format(accuracy * 100))
+#     print("=== Accuracy on benign test examples: {}%".format(accuracy * 100))
 
     # Step 6: Generate adversarial test examples
     epsilon = (8. / 255.)
-    batch_size = 1000
+    batch_size = 512
     
 #     print("Epsilon: ", epsilon)
     
@@ -187,10 +187,10 @@ if __name__ == "__main__" :
         attack = BrendelBethgeAttack(estimator=classifier, batch_size=256)
         # the parameter is obtained from
     elif args.attack == "cw" :
-        attack = CarliniLInfMethod(classifier=classifier, eps=epsilon, batch_size=batch_size)
+        attack = CarliniLInfMethod(classifier=classifier, eps=epsilon, batch_size=256)
         # the parameter is obtained from
     elif args.attack == "deepfool" :
-        attack = DeepFool(classifier=classifier, max_iter=50, epsilon=0.02, batch_size=batch_size)
+        attack = DeepFool(classifier=classifier, max_iter=50, epsilon=0.02, batch_size=512)
         # the parameter is obtained from https://github.com/LTS4/DeepFool/blob/master/Python/deepfool.py
     elif args.attack == "elasticnet" :
         attack = ElasticNet(classifier=classifier, beta=1e-2, batch_size=batch_size)
@@ -209,7 +209,7 @@ if __name__ == "__main__" :
         attack = ProjectedGradientDescentPyTorch(estimator=classifier, eps=epsilon, eps_step=2./255., max_iter=40, batch_size=batch_size)
         # the parameter is obtained from 
     elif args.attack == "newtonfool" :
-        attack = NewtonFool(classifier=classifier, batch_size=batch_size)
+        attack = NewtonFool(classifier=classifier, batch_size=512)
         # the parameter is obtained from
     elif args.attack == "pixelattack" :
         attack = PixelAttack(classifier=classifier)
@@ -224,7 +224,7 @@ if __name__ == "__main__" :
         attack = ShadowAttack(estimator=classifier)
         # the parameter is obtained from
     elif args.attack == "spatialtransformation" :
-        attack = SpatialTransformation(classifier=classifier, max_translation=3, max_rotation=30, batch_size=batch_size)
+        attack = SpatialTransformation(classifier=classifier, max_translation=3, max_rotation=30)
         # the parameter is obtained from
     elif args.attack == "squareattack" :
         attack = SquareAttack(estimator=classifier, eps=epsilon, batch_size=batch_size)
