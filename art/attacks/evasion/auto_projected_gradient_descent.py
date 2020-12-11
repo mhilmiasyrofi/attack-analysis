@@ -87,7 +87,7 @@ class AutoProjectedGradientDescent(EvasionAttack):
         :param batch_size: Size of the batch on which adversarial samples are generated.
         :param verbose: Show progress bars.
         """
-        from art.estimators.classification import TensorFlowClassifier, TensorFlowV2Classifier, PyTorchClassifier
+        from art.estimators.classification import TensorFlowClassifier, TensorFlowV2Classifier, PyTorchClassifier, PyTorchOATClassifier
 
         if loss_type not in self._predefined_losses:
             raise ValueError(
@@ -323,6 +323,82 @@ class AutoProjectedGradientDescent(EvasionAttack):
                         self._loss_object = difference_logits_ratio()
 
                 estimator_apgd = PyTorchClassifier(
+                    model=estimator.model,
+                    loss=self._loss_object,
+                    input_shape=estimator.input_shape,
+                    nb_classes=estimator.nb_classes,
+                    optimizer=None,
+                    channels_first=estimator.channels_first,
+                    clip_values=estimator.clip_values,
+                    preprocessing_defences=estimator.preprocessing_defences,
+                    postprocessing_defences=estimator.postprocessing_defences,
+                    preprocessing=estimator.preprocessing,
+                    device_type=estimator._device,
+                )
+            elif isinstance(estimator, PyTorchOATClassifier):
+                import torch
+
+                if loss_type == "cross_entropy":
+                    if is_probability(
+                        estimator.predict(x=np.ones(shape=(1, *estimator.input_shape), dtype=np.float32))
+                    ):
+                        raise ValueError(
+                            "The provided estimator seems to predict probabilities. If loss_type='cross_entropy' "
+                            "the estimator has to to predict logits."
+                        )
+                    else:
+                        self._loss_object = torch.nn.CrossEntropyLoss(reduction="mean")
+                elif loss_type == "difference_logits_ratio":
+                    if is_probability(
+                        estimator.predict(x=np.ones(shape=(1, *estimator.input_shape), dtype=ART_NUMPY_DTYPE))
+                    ):
+                        raise ValueError(
+                            "The provided estimator seems to predict probabilities. "
+                            "If loss_type='difference_logits_ratio' the estimator has to to predict logits."
+                        )
+                    else:
+
+                        class difference_logits_ratio:
+                            def __init__(self):
+                                self.reduction = "mean"
+
+                            def __call__(self, y_pred, y_true):  # type: ignore
+                                if isinstance(y_true, np.ndarray):
+                                    y_true = torch.from_numpy(y_true)
+                                if isinstance(y_pred, np.ndarray):
+                                    y_pred = torch.from_numpy(y_pred)
+
+                                y_true = y_true.float()
+
+                                i_y_true = torch.argmax(y_true, axis=1)
+                                i_y_pred_arg = torch.argsort(y_pred, axis=1)
+                                i_z_i_list = list()
+
+                                for i in range(y_true.shape[0]):
+                                    if i_y_pred_arg[i, -1] != i_y_true[i]:
+                                        i_z_i_list.append(i_y_pred_arg[i, -1])
+                                    else:
+                                        i_z_i_list.append(i_y_pred_arg[i, -2])
+
+                                i_z_i = torch.stack(i_z_i_list)
+
+                                z_1 = y_pred[:, i_y_pred_arg[:, -1]]
+                                z_3 = y_pred[:, i_y_pred_arg[:, -3]]
+                                z_i = y_pred[:, i_z_i]
+                                z_y = y_pred[:, i_y_true]
+
+                                z_1 = torch.diagonal(z_1)
+                                z_3 = torch.diagonal(z_3)
+                                z_i = torch.diagonal(z_i)
+                                z_y = torch.diagonal(z_y)
+
+                                dlr = -(z_y - z_i) / (z_1 - z_3)
+
+                                return torch.mean(dlr.float())
+
+                        self._loss_object = difference_logits_ratio()
+
+                estimator_apgd = PyTorchOATClassifier(
                     model=estimator.model,
                     loss=self._loss_object,
                     input_shape=estimator.input_shape,
