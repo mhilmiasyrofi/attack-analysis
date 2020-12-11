@@ -173,7 +173,7 @@ if __name__ == "__main__" :
         attack = BoundaryAttack(estimator=classifier, targeted=False)
         # the parameter is obtained from
     elif args.attack == "brendelbethge" :
-        attack = BrendelBethgeAttack(estimator=classifier, batch_size=256)
+        attack = BrendelBethgeAttack(estimator=classifier, batch_size=batch_size)
         # the parameter is obtained from
     elif args.attack == "cw" :
         attack = CarliniLInfMethod(classifier=classifier, eps=epsilon, batch_size=batch_size)
@@ -210,10 +210,10 @@ if __name__ == "__main__" :
         attack = SaliencyMapMethod(classifier=classifier, batch_size=batch_size)
         # the parameter is obtained from
     elif args.attack == "shadowattack" :
-        attack = ShadowAttack(estimator=classifier)
+        attack = ShadowAttack(estimator=classifier, batch_size=1)
         # the parameter is obtained from
     elif args.attack == "spatialtransformation" :
-        attack = SpatialTransformation(classifier=classifier, max_translation=3, max_rotation=30, batch_size=batch_size)
+        attack = SpatialTransformation(classifier=classifier, max_translation=3, max_rotation=30)
         # the parameter is obtained from
     elif args.attack == "squareattack" :
         attack = SquareAttack(estimator=classifier, eps=epsilon, batch_size=batch_size)
@@ -225,7 +225,7 @@ if __name__ == "__main__" :
         attack = Wasserstein(estimator=classifier, batch_size=1024)
         # the parameter is obtained from
     elif args.attack == "zoo" :
-        attack = ZooAttack(classifier=classifier)
+        attack = ZooAttack(classifier=classifier, nb_parallel=1024, batch_size=256)
         # the parameter is obtained from
     else :
         raise ValueError("Unknown model")
