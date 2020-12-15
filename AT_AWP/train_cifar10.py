@@ -17,6 +17,10 @@ from preactresnet import PreActResNet18
 from utils import *
 from utils_awp import AdvWeightPerturb
 
+from models import *
+from constant import TOOLBOX_ADV_ATTACK_LIST
+
+
 mu = torch.tensor(cifar10_mean).view(3, 1, 1).cuda()
 std = torch.tensor(cifar10_std).view(3, 1, 1).cuda()
 
@@ -127,18 +131,18 @@ def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts,
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', default='PreActResNet18')
+    parser.add_argument('--model', default='ResNet18')
     parser.add_argument('--l2', default=0, type=float)
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--batch-size', default=128, type=int)
     parser.add_argument('--batch-size-test', default=128, type=int)
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
-    parser.add_argument('--epochs', default=200, type=int)
+    parser.add_argument('--epochs', default=110, type=int)
     parser.add_argument('--lr-schedule', default='piecewise', choices=['superconverge', 'piecewise', 'linear', 'piecewisesmoothed', 'piecewisezoom', 'onedrop', 'multipledecay', 'cosine', 'cyclic'])
     parser.add_argument('--lr-max', default=0.1, type=float)
     parser.add_argument('--lr-one-drop', default=0.01, type=float)
     parser.add_argument('--lr-drop-epoch', default=100, type=int)
-    parser.add_argument('--attack', default='pgd', type=str, choices=['pgd', 'fgsm', 'free', 'none'])
+    parser.add_argument('--attack', default='autoattack', type=str)
     parser.add_argument('--epsilon', default=8, type=int)
     parser.add_argument('--attack-iters', default=10, type=int)
     parser.add_argument('--attack-iters-test', default=20, type=int)
@@ -147,7 +151,7 @@ def get_args():
     parser.add_argument('--fgsm-alpha', default=1.25, type=float)
     parser.add_argument('--norm', default='l_inf', type=str, choices=['l_inf', 'l_2'])
     parser.add_argument('--fgsm-init', default='random', choices=['zero', 'random', 'previous'])
-    parser.add_argument('--fname', default='cifar_model', type=str)
+    parser.add_argument('--fname', default='trained_models', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--half', action='store_true')
     parser.add_argument('--width-factor', default=10, type=int)
@@ -168,9 +172,11 @@ def main():
     args = get_args()
     if args.awp_gamma <= 0.0:
         args.awp_warmup = np.infty
-
-    if not os.path.exists(args.fname):
-        os.makedirs(args.fname)
+    
+    fname = args.fname + "/" + args.attack + "/"
+        
+    if not os.path.exists(fname):
+        os.makedirs(fname)
 
     logger = logging.getLogger(__name__)
     logging.basicConfig(
@@ -178,7 +184,7 @@ def main():
         datefmt='%Y/%m/%d %H:%M:%S',
         level=logging.DEBUG,
         handlers=[
-            logging.FileHandler(os.path.join(args.fname, 'eval.log' if args.eval else 'output.log')),
+            logging.FileHandler(os.path.join(fname, 'eval.log' if args.eval else 'output.log')),
             logging.StreamHandler()
         ])
 
@@ -210,10 +216,60 @@ def main():
     test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
     test_batches = Batches(test_set, args.batch_size_test, shuffle=False, num_workers=2)
 
+    
+    train_adv_images = None
+    train_adv_labels = None
+    test_adv_images = None
+    test_adv_labels = None
+
+    adv_dir = "adv_examples/{}/".format(args.attack)
+    train_path = adv_dir + "train.pth" 
+    test_path = adv_dir + "test.pth"
+    
+
+    if args.attack in TOOLBOX_ADV_ATTACK_LIST :
+        adv_train_data = torch.load(train_path)
+        train_adv_images = adv_train_data["adv"]
+        train_adv_labels = adv_train_data["label"]
+        adv_test_data = torch.load(test_path)
+        test_adv_images = adv_test_data["adv"]
+        test_adv_labels = adv_test_data["label"]        
+    elif args.attack in ["ffgsm", "mifgsm", "tpgd"] :
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(train_path)
+        train_adv_images = adv_data["adv"].numpy()
+        train_adv_labels = adv_data["label"].numpy()
+        adv_data = {}
+        adv_data["adv"], adv_data["label"] = torch.load(test_path)
+        test_adv_images = adv_data["adv"].numpy()
+        test_adv_labels = adv_data["label"].numpy()
+    else :
+        raise ValueError("Unknown adversarial data")
+        
+    print("")
+    print("Train Adv Attack Data: ", args.attack)
+    print("Dataset shape: ", train_adv_images.shape)
+    print("Dataset type: ", type(train_adv_images))
+    print("Label shape: ", len(train_adv_labels))
+    print("")
+    
+    train_adv_set = list(zip(train_adv_images,
+        train_adv_labels))
+    
+    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=True, set_random_choices=False, num_workers=4)
+    
+    test_adv_set = list(zip(test_adv_images,
+        test_adv_labels))
+        
+    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=4)
+    
     epsilon = (args.epsilon / 255.)
     pgd_alpha = (args.pgd_alpha / 255.)
 
-    if args.model == 'PreActResNet18':
+    if args.model == "ResNet18" :
+        model = resnet18(pretrained=True)
+        proxy = resnet18(pretrained=True)
+    elif args.model == 'PreActResNet18':
         model = PreActResNet18()
         proxy = PreActResNet18()
     elif args.model == 'WideResNet':
@@ -286,12 +342,12 @@ def main():
     best_val_robust_acc = 0
     if args.resume:
         start_epoch = args.resume
-        model.load_state_dict(torch.load(os.path.join(args.fname, f'model_{start_epoch-1}.pth')))
-        opt.load_state_dict(torch.load(os.path.join(args.fname, f'opt_{start_epoch-1}.pth')))
+        model.load_state_dict(torch.load(os.path.join(fname, f'model_{start_epoch-1}.pth')))
+        opt.load_state_dict(torch.load(os.path.join(fname, f'opt_{start_epoch-1}.pth')))
         logger.info(f'Resuming at epoch {start_epoch}')
 
-        if os.path.exists(os.path.join(args.fname, f'model_best.pth')):
-            best_test_robust_acc = torch.load(os.path.join(args.fname, f'model_best.pth'))['test_robust_acc']
+        if os.path.exists(os.path.join(fname, f'model_best.pth')):
+            best_test_robust_acc = torch.load(os.path.join(fname, f'model_best.pth'))['test_robust_acc']
         if args.val:
             best_val_robust_acc = torch.load(os.path.join(args.fname, f'model_val.pth'))['val_robust_acc']
     else:
@@ -311,7 +367,7 @@ def main():
         train_robust_loss = 0
         train_robust_acc = 0
         train_n = 0
-        for i, batch in enumerate(train_batches):
+        for i, (batch, adv_batch) in enumerate(zip(train_batches, train_adv_batches)):
             if args.eval:
                 break
             X, y = batch['input'], batch['target']
@@ -321,19 +377,22 @@ def main():
             lr = lr_schedule(epoch + (i + 1) / len(train_batches))
             opt.param_groups[0].update(lr=lr)
 
-            if args.attack == 'pgd':
-                # Random initialization
-                if args.mixup:
-                    delta = attack_pgd(model, X, y, epsilon, pgd_alpha, args.attack_iters, args.restarts, args.norm, mixup=True, y_a=y_a, y_b=y_b, lam=lam)
-                else:
-                    delta = attack_pgd(model, X, y, epsilon, pgd_alpha, args.attack_iters, args.restarts, args.norm)
-                delta = delta.detach()
-            elif args.attack == 'fgsm':
-                delta = attack_pgd(model, X, y, epsilon, args.fgsm_alpha*epsilon, 1, 1, args.norm)
-            # Standard training
-            elif args.attack == 'none':
-                delta = torch.zeros_like(X)
-            X_adv = normalize(torch.clamp(X + delta[:X.size(0)], min=lower_limit, max=upper_limit))
+#             if args.attack == 'pgd':
+#                 # Random initialization
+#                 if args.mixup:
+#                     delta = attack_pgd(model, X, y, epsilon, pgd_alpha, args.attack_iters, args.restarts, args.norm, mixup=True, y_a=y_a, y_b=y_b, lam=lam)
+#                 else:
+#                     delta = attack_pgd(model, X, y, epsilon, pgd_alpha, args.attack_iters, args.restarts, args.norm)
+#                 delta = delta.detach()
+#             elif args.attack == 'fgsm':
+#                 delta = attack_pgd(model, X, y, epsilon, args.fgsm_alpha*epsilon, 1, 1, args.norm)
+#             # Standard training
+#             elif args.attack == 'none':
+#                 delta = torch.zeros_like(X)
+#             X_adv = normalize(torch.clamp(X + delta[:X.size(0)], min=lower_limit, max=upper_limit))
+            
+            X_adv = normalize(adv_batch["input"])
+            y_adv = adv_batch["target"]
 
             model.train()
             # calculate adversarial weight perturbation and perturb it
@@ -341,14 +400,14 @@ def main():
                 # not compatible to mixup currently.
                 assert (not args.mixup)
                 awp = awp_adversary.calc_awp(inputs_adv=X_adv,
-                                             targets=y)
+                                             targets=y_adv)
                 awp_adversary.perturb(awp)
 
             robust_output = model(X_adv)
             if args.mixup:
                 robust_loss = mixup_criterion(criterion, robust_output, y_a, y_b, lam)
             else:
-                robust_loss = criterion(robust_output, y)
+                robust_loss = criterion(robust_output, y_adv)
 
             if args.l1:
                 for name,param in model.named_parameters():
@@ -368,8 +427,8 @@ def main():
             else:
                 loss = criterion(output, y)
 
-            train_robust_loss += robust_loss.item() * y.size(0)
-            train_robust_acc += (robust_output.max(1)[1] == y).sum().item()
+            train_robust_loss += robust_loss.item() * y_adv.size(0)
+            train_robust_acc += (robust_output.max(1)[1] == y_adv).sum().item()
             train_loss += loss.item() * y.size(0)
             train_acc += (output.max(1)[1] == y).sum().item()
             train_n += y.size(0)
@@ -382,24 +441,27 @@ def main():
         test_robust_loss = 0
         test_robust_acc = 0
         test_n = 0
-        for i, batch in enumerate(test_batches):
+        for i, (batch, adv_batch) in enumerate(zip(test_batches, test_adv_batches)):
             X, y = batch['input'], batch['target']
+            X_adv, y_adv = normalize(adv_batch["input"]), adv_batch["target"]
 
-            # Random initialization
-            if args.attack == 'none':
-                delta = torch.zeros_like(X)
-            else:
-                delta = attack_pgd(model, X, y, epsilon, pgd_alpha, args.attack_iters_test, args.restarts, args.norm, early_stop=args.eval)
-            delta = delta.detach()
+#             # Random initialization
+#             if args.attack == 'none':
+#                 delta = torch.zeros_like(X)
+#             else:
+#                 delta = attack_pgd(model, X, y, epsilon, pgd_alpha, args.attack_iters_test, args.restarts, args.norm, early_stop=args.eval)
+#             delta = delta.detach()
 
-            robust_output = model(normalize(torch.clamp(X + delta[:X.size(0)], min=lower_limit, max=upper_limit)))
-            robust_loss = criterion(robust_output, y)
+#             robust_output = model(normalize(torch.clamp(X + delta[:X.size(0)], min=lower_limit, max=upper_limit)))
+            
+            robust_output = model(X_adv)
+            robust_loss = criterion(robust_output, y_adv)
 
             output = model(normalize(X))
             loss = criterion(output, y)
 
-            test_robust_loss += robust_loss.item() * y.size(0)
-            test_robust_acc += (robust_output.max(1)[1] == y).sum().item()
+            test_robust_loss += robust_loss.item() * y_adv.size(0)
+            test_robust_acc += (robust_output.max(1)[1] == y_adv).sum().item()
             test_loss += loss.item() * y.size(0)
             test_acc += (output.max(1)[1] == y).sum().item()
             test_n += y.size(0)
@@ -455,13 +517,13 @@ def main():
                             'val_robust_loss':val_robust_loss/val_n,
                             'val_loss':val_loss/val_n,
                             'val_acc':val_acc/val_n,
-                        }, os.path.join(args.fname, f'model_val.pth'))
+                        }, os.path.join(fname, f'model_val.pth'))
                     best_val_robust_acc = val_robust_acc/val_n
 
             # save checkpoint
             if (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
-                torch.save(model.state_dict(), os.path.join(args.fname, f'model_{epoch}.pth'))
-                torch.save(opt.state_dict(), os.path.join(args.fname, f'opt_{epoch}.pth'))
+                torch.save(model.state_dict(), os.path.join(fname, f'model_{epoch}.pth'))
+                torch.save(opt.state_dict(), os.path.join(fname, f'opt_{epoch}.pth'))
 
             # save best
             if test_robust_acc/test_n > best_test_robust_acc:
@@ -471,7 +533,7 @@ def main():
                         'test_robust_loss':test_robust_loss/test_n,
                         'test_loss':test_loss/test_n,
                         'test_acc':test_acc/test_n,
-                    }, os.path.join(args.fname, f'model_best.pth'))
+                    }, os.path.join(fname, f'model_best.pth'))
                 best_test_robust_acc = test_robust_acc/test_n
         else:
             logger.info('%d \t %.1f \t \t %.1f \t \t %.4f \t %.4f \t %.4f \t %.4f \t \t %.4f \t \t %.4f \t %.4f \t %.4f \t \t %.4f',
@@ -483,3 +545,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    
+    
+    
+    
+#python train_cifar10.py --attack autoattack
