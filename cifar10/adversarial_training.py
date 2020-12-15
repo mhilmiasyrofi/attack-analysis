@@ -463,7 +463,7 @@ def main():
     test_robust_set = list(zip(test_robust_images,
         test_robust_labels))
         
-    test_robust_batches = Batches(test_robust_set, args.batch_size, shuffle=True, num_workers=4)
+    test_robust_batches = Batches(test_robust_set, args.batch_size, shuffle=False, num_workers=4)
         
     # Set perturbations
     epsilon = (args.epsilon / 255.)
