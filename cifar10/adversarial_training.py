@@ -10,6 +10,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+from sklearn.utils import resample
+
 import os
 
 from wideresnet import WideResNet
@@ -107,6 +109,8 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
     parser.add_argument('--attack', default='pgd')
+    parser.add_argument('--list', default='newtonfool_pixelattack_spatialtransformation')
+    parser.add_argument('--balanced', default=None) # "9_1_1"
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--data-dir', default='cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
@@ -192,8 +196,20 @@ def get_args():
 
     return parser.parse_args()
 
+
 def get_auto_fname(args):
-    names = args.model + '_'  + args.attack + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+    
+    names = None
+    
+    if args.attack == "combine" :
+        if args.balanced != None :            
+            names = args.model + '_'  + args.attack + '_balanced_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+        else :
+            names = args.model + '_'  + args.attack + '_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+    else :
+        names = args.model + '_'  + args.attack + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)            
+
+    
     # Group 1
     if args.earlystopPGD:
         names = names + '_earlystopPGD' + str(args.earlystopPGDepoch1) + str(args.earlystopPGDepoch2)
@@ -288,19 +304,55 @@ def main():
     
     y_train = dataset['train']['labels']
     y_test = dataset['test']['labels']
-    
-    train_set = list(zip(x_train, y_train))
+
     test_set = list(zip(x_test, y_test))
-    
-    train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=False, num_workers=4)
-    test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)
+
+    if args.attack == "combine" and args.balanced == None:
+        train_data = x_train
+
+        train_labels = np.array(y_train)
+
+        oversampled_train_data = train_data.copy()
+        oversampled_train_labels = train_labels.copy()
+                
+        print("Attacks")
+        attacks = args.list.split("_")
+        print(attacks)
+
+        for i in range(len(attacks)-1) :
+            oversampled_train_data = np.concatenate((oversampled_train_data, train_data))
+            oversampled_train_labels = np.concatenate((oversampled_train_labels, train_labels))
+
+        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels))) 
+
+    elif args.attack == "all" :
         
+        train_data = x_train
+
+        train_labels = np.array(y_train)
+
+        oversampled_train_data = train_data.copy()
+        oversampled_train_labels = train_labels.copy()
+
+        for i in range(10) :
+            oversampled_train_data = np.concatenate((oversampled_train_data, train_data))
+            oversampled_train_labels = np.concatenate((oversampled_train_labels, train_labels))
+
+        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels))) 
+    else :
+        train_set = list(zip(x_train, y_train))
+
+
     
+    train_batches = Batches(train_set, args.batch_size, shuffle=False, set_random_choices=False, num_workers=4)
+    test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)
+    
+        
     print("")
     print("Original Data")
-    print("Dataset shape: ", dataset['train']['data'].shape)
-    print("Dataset type: ", type(dataset['train']['data']))
-    print("Label shape: ", len(dataset['train']['labels']))
+    print("Dataset Length: ", len(train_set))
+#     print("Dataset type: ", type(dataset['train']['data']))
+#     print("Label shape: ", len(dataset['train']['labels']))
     
     train_adv_images = None
     train_adv_labels = None
@@ -310,6 +362,8 @@ def main():
     adv_dir = "adv_examples/{}/".format(args.attack)
     train_path = adv_dir + "train.pth" 
     test_path = adv_dir + "test.pth"
+    
+    ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
     
 
     if args.attack in TOOLBOX_ADV_ATTACK_LIST :
@@ -328,6 +382,109 @@ def main():
         adv_data["adv"], adv_data["label"] = torch.load(test_path)
         test_robust_images = adv_data["adv"].numpy()
         test_robust_labels = adv_data["label"].numpy()
+    elif args.attack == "all" :
+        
+        for i in range(len(ATTACK_LIST)):
+            _adv_dir = "adv_examples/{}/".format(ATTACK_LIST[i])
+            train_path = _adv_dir + "train.pth" 
+            test_path = _adv_dir + "test.pth"
+
+            adv_train_data = torch.load(train_path)
+            adv_test_data = torch.load(test_path)
+            
+            if i == 0 :
+                train_adv_images = adv_train_data["adv"]
+                train_adv_labels = adv_train_data["label"]
+                test_robust_images = adv_test_data["adv"]
+                test_robust_labels = adv_test_data["label"]   
+            else :
+#                 print(train_adv_images.shape)
+#                 print(adv_train_data["adv"].shape)
+                train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
+                train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
+                test_robust_images = np.concatenate((test_robust_images, adv_test_data["adv"]))
+                test_robust_labels = np.concatenate((test_robust_labels, adv_test_data["label"]))
+    elif args.attack == "combine" :
+        
+#         for i in range(len(ATTACK_LIST)):
+#             _adv_dir = "adv_examples/{}/".format(ATTACK_LIST[i])
+#             test_path = _adv_dir + "test.pth"
+
+#             adv_test_data = torch.load(test_path)
+
+#             if i == 0 :
+#                 test_robust_images = adv_test_data["adv"]
+#                 test_robust_labels = adv_test_data["label"]   
+#             else :
+#                 test_robust_images = np.concatenate((test_robust_images, adv_test_data["adv"]))
+#                 test_robust_labels = np.concatenate((test_robust_labels, adv_test_data["label"]))
+
+        print("Attacks")
+        attacks = args.list.split("_")
+        print(attacks)
+        
+        if args.balanced == None :
+            for i in range(len(attacks)):
+                _adv_dir = "adv_examples/{}/".format(attacks[i])
+                train_path = _adv_dir + "train.pth" 
+                test_path = _adv_dir + "test.pth"
+
+                adv_train_data = torch.load(train_path)
+                adv_test_data = torch.load(test_path)
+
+                if i == 0 :
+                    train_adv_images = adv_train_data["adv"]
+                    train_adv_labels = adv_train_data["label"]
+                    test_robust_images = adv_test_data["adv"]
+                    test_robust_labels = adv_test_data["label"]   
+                else :
+    #                 print(train_adv_images.shape)
+    #                 print(adv_train_data["adv"].shape)
+                    train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
+                    train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
+                    test_robust_images = np.concatenate((test_robust_images, adv_test_data["adv"]))
+                    test_robust_labels = np.concatenate((test_robust_labels, adv_test_data["label"]))
+        else :
+            proportion_str = args.balanced.split("_")
+            proportion = [int(x) for x in proportion_str]
+            sum_proportion = sum(proportion)
+            proportion = [float(x)/float(sum_proportion) for x in proportion]
+            sum_samples = 0
+            
+            for i in range(len(attacks)):
+                _adv_dir = "adv_examples/{}/".format(attacks[i])
+                train_path = _adv_dir + "train.pth" 
+                test_path = _adv_dir + "test.pth"
+
+                adv_train_data = torch.load(train_path)
+                adv_test_data = torch.load(test_path)
+                
+                random_state = 0
+                num_samples = 0
+                total = 50000
+                if i != len(attacks)-1 :
+                    n_samples = int(proportion[i] * total)
+                    sum_samples += n_samples
+                else :
+                    n_samples = total-sum_samples
+                print("Sample")
+                print(n_samples)
+
+                if i == 0 :
+#                     resample(y, n_samples=2, random_state=0)
+                    train_adv_images = resample(adv_train_data["adv"], n_samples=n_samples, random_state=random_state)
+                    train_adv_labels = resample(adv_train_data["label"], n_samples=n_samples, random_state=random_state)
+                    test_robust_images = resample(adv_test_data["adv"], n_samples=n_samples, random_state=random_state)
+                    test_robust_labels = resample(adv_test_data["label"], n_samples=n_samples, random_state=random_state)   
+                else :
+    #                 print(train_adv_images.shape)
+    #                 print(adv_train_data["adv"].shape)
+                    train_adv_images = np.concatenate((train_adv_images, resample(adv_train_data["adv"], n_samples=n_samples, random_state=random_state)))
+                    train_adv_labels = np.concatenate((train_adv_labels, resample(adv_train_data["label"], n_samples=n_samples, random_state=random_state)))
+                    test_robust_images = np.concatenate((test_robust_images, resample(adv_test_data["adv"], n_samples=n_samples, random_state=random_state)))
+                    test_robust_labels = np.concatenate((test_robust_labels, resample(adv_test_data["label"], n_samples=n_samples, random_state=random_state)))
+
+
     else :
         raise ValueError("Unknown adversarial data")
         
@@ -341,7 +498,7 @@ def main():
     train_adv_set = list(zip(train_adv_images,
         train_adv_labels))
     
-    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=True, set_random_choices=False, num_workers=4)
+    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=False, set_random_choices=False, num_workers=4)
     
     test_robust_set = list(zip(test_robust_images,
         test_robust_labels))
