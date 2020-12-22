@@ -73,62 +73,6 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
 
-def attack_pgd(model, X, y, epsilon, alpha, attack_iters, restarts,
-               norm, early_stop=False,
-               mixup=False, y_a=None, y_b=None, lam=None):
-    max_loss = torch.zeros(y.shape[0]).cuda()
-    max_delta = torch.zeros_like(X).cuda()
-    for _ in range(restarts):
-        delta = torch.zeros_like(X).cuda()
-        if norm == "l_inf":
-            delta.uniform_(-epsilon, epsilon)
-        elif norm == "l_2":
-            delta.normal_()
-            d_flat = delta.view(delta.size(0),-1)
-            n = d_flat.norm(p=2,dim=1).view(delta.size(0),1,1,1)
-            r = torch.zeros_like(n).uniform_(0, 1)
-            delta *= r/n*epsilon
-        else:
-            raise ValueError
-        delta = clamp(delta, lower_limit-X, upper_limit-X)
-        delta.requires_grad = True
-        for _ in range(attack_iters):
-            output = model(normalize(X + delta))
-            if early_stop:
-                index = torch.where(output.max(1)[1] == y)[0]
-            else:
-                index = slice(None,None,None)
-            if not isinstance(index, slice) and len(index) == 0:
-                break
-            if mixup:
-                criterion = nn.CrossEntropyLoss()
-                loss = mixup_criterion(criterion, model(normalize(X+delta)), y_a, y_b, lam)
-            else:
-                loss = F.cross_entropy(output, y)
-            loss.backward()
-            grad = delta.grad.detach()
-            d = delta[index, :, :, :]
-            g = grad[index, :, :, :]
-            x = X[index, :, :, :]
-            if norm == "l_inf":
-                d = torch.clamp(d + alpha * torch.sign(g), min=-epsilon, max=epsilon)
-            elif norm == "l_2":
-                g_norm = torch.norm(g.view(g.shape[0],-1),dim=1).view(-1,1,1,1)
-                scaled_g = g/(g_norm + 1e-10)
-                d = (d + scaled_g*alpha).view(d.size(0),-1).renorm(p=2,dim=0,maxnorm=epsilon).view_as(d)
-            d = clamp(d, lower_limit - x, upper_limit - x)
-            delta.data[index, :, :, :] = d
-            delta.grad.zero_()
-        if mixup:
-            criterion = nn.CrossEntropyLoss(reduction='none')
-            all_loss = mixup_criterion(criterion, model(normalize(X+delta)), y_a, y_b, lam)
-        else:
-            all_loss = F.cross_entropy(model(normalize(X+delta)), y, reduction='none')
-        max_delta[all_loss >= max_loss] = delta.detach()[all_loss >= max_loss]
-        max_loss = torch.max(max_loss, all_loss)
-    return max_delta
-
-
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='ResNet18')
@@ -197,24 +141,34 @@ def main():
     transforms = [Crop(32, 32), FlipLR()]
     if args.cutout:
         transforms.append(Cutout(args.cutout_len, args.cutout_len))
-    if args.val:
-        try:
-            dataset = torch.load("cifar10_validation_split.pth")
-        except:
-            print("Couldn't find a dataset with a validation split, did you run "
-                  "generate_validation.py?")
-            return
-        val_set = list(zip(transpose(dataset['val']['data']/255.), dataset['val']['labels']))
-        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=2)
-    else:
-        dataset = cifar10(args.data_dir)
-    train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
-        dataset['train']['labels']))
+    
+    dataset = cifar10(args.data_dir)
+    x_train = transpose(pad(dataset['train']['data'], 4)/255.)
+    y_train = dataset['train']['labels']
+
+    if args.attack != "all" :
+        train_set = list(zip(x_train, y_train))    
+    else :
+#         print("Shape")
+#         print(x_train.shape)
+        train_data = np.array(x_train)
+        train_labels = np.array(y_train)
+
+        oversampled_train_data = train_data.copy()
+        oversampled_train_labels = train_labels.copy()
+
+        for i in range(10) :
+            oversampled_train_data = np.concatenate((oversampled_train_data, train_data))
+            oversampled_train_labels = np.concatenate((oversampled_train_labels, train_labels))
+
+        train_set = list(zip(oversampled_train_data, oversampled_train_labels))
+    
     train_set_x = Transform(train_set, transforms)
-    train_batches = Batches(train_set_x, args.batch_size, shuffle=True, set_random_choices=True, num_workers=2)
+    train_batches = Batches(train_set_x, args.batch_size, shuffle=True, set_random_choices=True, num_workers=1)
+        
 
     test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
-    test_batches = Batches(test_set, args.batch_size_test, shuffle=False, num_workers=2)
+    test_batches = Batches(test_set, args.batch_size_test, shuffle=False, num_workers=1)
 
     
     train_adv_images = None
@@ -243,6 +197,26 @@ def main():
         adv_data["adv"], adv_data["label"] = torch.load(test_path)
         test_adv_images = adv_data["adv"].numpy()
         test_adv_labels = adv_data["label"].numpy()
+    elif args.attack == "all" :
+        ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
+        for i in range(len(ATTACK_LIST)):
+            _adv_dir = "adv_examples/{}/".format(ATTACK_LIST[i])
+            train_path = _adv_dir + "train.pth" 
+            test_path = _adv_dir + "test.pth"
+
+            adv_train_data = torch.load(train_path)
+            adv_test_data = torch.load(test_path)
+
+            if i == 0 :
+                train_adv_images = adv_train_data["adv"]
+                train_adv_labels = adv_train_data["label"]
+                test_adv_images = adv_test_data["adv"]
+                test_adv_labels = adv_test_data["label"]   
+            else :
+                train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
+                train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
+                test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
+                test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
     else :
         raise ValueError("Unknown adversarial data")
         
@@ -376,20 +350,6 @@ def main():
                 X, y_a, y_b = map(Variable, (X, y_a, y_b))
             lr = lr_schedule(epoch + (i + 1) / len(train_batches))
             opt.param_groups[0].update(lr=lr)
-
-#             if args.attack == 'pgd':
-#                 # Random initialization
-#                 if args.mixup:
-#                     delta = attack_pgd(model, X, y, epsilon, pgd_alpha, args.attack_iters, args.restarts, args.norm, mixup=True, y_a=y_a, y_b=y_b, lam=lam)
-#                 else:
-#                     delta = attack_pgd(model, X, y, epsilon, pgd_alpha, args.attack_iters, args.restarts, args.norm)
-#                 delta = delta.detach()
-#             elif args.attack == 'fgsm':
-#                 delta = attack_pgd(model, X, y, epsilon, args.fgsm_alpha*epsilon, 1, 1, args.norm)
-#             # Standard training
-#             elif args.attack == 'none':
-#                 delta = torch.zeros_like(X)
-#             X_adv = normalize(torch.clamp(X + delta[:X.size(0)], min=lower_limit, max=upper_limit))
             
             X_adv = normalize(adv_batch["input"])
             y_adv = adv_batch["target"]
@@ -444,15 +404,6 @@ def main():
         for i, (batch, adv_batch) in enumerate(zip(test_batches, test_adv_batches)):
             X, y = batch['input'], batch['target']
             X_adv, y_adv = normalize(adv_batch["input"]), adv_batch["target"]
-
-#             # Random initialization
-#             if args.attack == 'none':
-#                 delta = torch.zeros_like(X)
-#             else:
-#                 delta = attack_pgd(model, X, y, epsilon, pgd_alpha, args.attack_iters_test, args.restarts, args.norm, early_stop=args.eval)
-#             delta = delta.detach()
-
-#             robust_output = model(normalize(torch.clamp(X + delta[:X.size(0)], min=lower_limit, max=upper_limit)))
             
             robust_output = model(X_adv)
             robust_loss = criterion(robust_output, y_adv)
@@ -468,33 +419,6 @@ def main():
 
         test_time = time.time()
 
-        if args.val:
-            val_loss = 0
-            val_acc = 0
-            val_robust_loss = 0
-            val_robust_acc = 0
-            val_n = 0
-            for i, batch in enumerate(val_batches):
-                X, y = batch['input'], batch['target']
-
-                # Random initialization
-                if args.attack == 'none':
-                    delta = torch.zeros_like(X)
-                else:
-                    delta = attack_pgd(model, X, y, epsilon, pgd_alpha, args.attack_iters_test, args.restarts, args.norm, early_stop=args.eval)
-                delta = delta.detach()
-
-                robust_output = model(normalize(torch.clamp(X + delta[:X.size(0)], min=lower_limit, max=upper_limit)))
-                robust_loss = criterion(robust_output, y)
-
-                output = model(normalize(X))
-                loss = criterion(output, y)
-
-                val_robust_loss += robust_loss.item() * y.size(0)
-                val_robust_acc += (robust_output.max(1)[1] == y).sum().item()
-                val_loss += loss.item() * y.size(0)
-                val_acc += (output.max(1)[1] == y).sum().item()
-                val_n += y.size(0)
 
         if not args.eval:
             logger.info('%d \t %.1f \t \t %.1f \t \t %.4f \t %.4f \t %.4f \t %.4f \t \t %.4f \t \t %.4f \t %.4f \t %.4f \t \t %.4f',
