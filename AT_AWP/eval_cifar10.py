@@ -10,6 +10,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+import torchvision
+from torchvision import datasets, transforms
+
+
 import os
 
 from wideresnet import WideResNet
@@ -151,28 +155,11 @@ def main():
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
-    transforms = [Crop(32, 32), FlipLR()]
-    if args.cutout:
-        transforms.append(Cutout(args.cutout_len, args.cutout_len))
-    if args.val:
-        try:
-            dataset = torch.load("cifar10_validation_split.pth")
-        except:
-            print("Couldn't find a dataset with a validation split, did you run "
-                  "generate_validation.py?")
-            return
-        val_set = list(zip(transpose(dataset['val']['data']/255.), dataset['val']['labels']))
-        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=2)
-    else:
-        dataset = cifar10(args.data_dir)
-    train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
-        dataset['train']['labels']))
-    train_set_x = Transform(train_set, transforms)
-    train_batches = Batches(train_set_x, args.batch_size, shuffle=True, set_random_choices=True, num_workers=2)
-
-    test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
-    test_batches = Batches(test_set, args.batch_size_test, shuffle=False, num_workers=2)
-
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+    ])
+    test_set = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform_test)
+    test_batches = Batches(test_set, args.batch_size, shuffle=False)
     
     train_adv_images = None
     train_adv_labels = None
