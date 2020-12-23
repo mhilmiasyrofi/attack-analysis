@@ -107,6 +107,8 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
     parser.add_argument('--train-adversarial', default='autoattack')
+    parser.add_argument('--list', default='newtonfool_pixelattack_spatialtransformation')
+    parser.add_argument('--balanced', default=None) # "9_1_1"
     parser.add_argument('--test-adversarial', default='pgd')
     parser.add_argument('--best-model', action='store_true')
     parser.add_argument('--l1', default=0, type=float)
@@ -197,7 +199,18 @@ def get_args():
 
 def get_auto_fname(args):
 #     names = args.model + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
-    names = args.model + '_'  + args.train_adversarial + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+#     names = args.model + '_'  + args.train_adversarial + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+    
+    names = None
+    
+    if args.train_adversarial == "combine" :
+        if args.balanced != None :            
+            names = args.model + '_'  + args.train_adversarial + '_balanced_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+        else :
+            names = args.model + '_'  + args.train_adversarial + '_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+    else :
+        names = args.model + '_'  + args.train_adversarial + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)    
+    
     # Group 1
     if args.earlystopPGD:
         names = names + '_earlystopPGD' + str(args.earlystopPGDepoch1) + str(args.earlystopPGDepoch2)
@@ -243,8 +256,8 @@ def get_auto_fname(args):
         names = names + '_mixup' + str(args.mixup_alpha)
     if args.cutout:
         names = names + '_cutout' + str(args.cutout_len)
-#     if args.attack != 'pgd':
-#         names = names + '_' + args.attack
+#     if args.train_adversarial != 'pgd':
+#         names = names + '_' + args.train_adversarial
 
     print('File name: ', names)
     return names
@@ -296,68 +309,71 @@ def main():
     test_set = list(zip(x_test, y_test))
     test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)
     
-    adv_dir = "adv_examples/{}/".format(args.train_adversarial)
-    test_path = adv_dir + "test.pth"
-    if args.train_adversarial == "original" :
-        test_robust_images = x_test
-        test_robust_labels = y_test
-    elif args.train_adversarial in TOOLBOX_ADV_ATTACK_LIST :
-        adv_test_data = torch.load(test_path)
-        test_robust_images = adv_test_data["adv"]
-        test_robust_labels = adv_test_data["label"]        
-    elif args.train_adversarial in ["ffgsm", "mifgsm", "tpgd"] :
-        adv_data = {}
-        adv_data["adv"], adv_data["label"] = torch.load(test_path)
-        test_robust_images = adv_data["adv"].numpy()
-        test_robust_labels = adv_data["label"].numpy()
-    else :
-        raise ValueError("Unknown adversarial data")
-        
-#     print(y_test == test_robust_labels) 
-    
     print("Train Adv Attack Data: ", args.train_adversarial)
-    
-    test_robust_set = list(zip(test_robust_images,
-        test_robust_labels))
-        
-    test_robust_batches = Batches(test_robust_set, args.batch_size, shuffle=False, num_workers=4)
-    
     
     adv_dir = "adv_examples/{}/".format(args.test_adversarial)
     train_path = adv_dir + "train.pth" 
     test_path = adv_dir + "test.pth"
     
+    ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
     
     if args.test_adversarial in TOOLBOX_ADV_ATTACK_LIST :
         adv_train_data = torch.load(train_path)
-        test_cross_robust_images_on_train = adv_train_data["adv"]
-        test_cross_robust_labels_on_train = adv_train_data["label"]
+        test_adv_images_on_train = adv_train_data["adv"]
+        test_adv_labels_on_train = adv_train_data["label"]
         adv_test_data = torch.load(test_path)
-        test_cross_robust_images_on_test = adv_test_data["adv"]
-        test_cross_robust_labels_on_test = adv_test_data["label"]   
+        test_adv_images_on_test = adv_test_data["adv"]
+        test_adv_labels_on_test = adv_test_data["label"]
+    elif args.test_adversarial == "all":
+        for i in range(len(ATTACK_LIST)):
+            _adv_dir = "adv_examples/{}/".format(ATTACK_LIST[i])
+            train_path = _adv_dir + "train.pth" 
+            test_path = _adv_dir + "test.pth"
+
+            adv_train_data = torch.load(train_path)
+            adv_test_data = torch.load(test_path)
+            
+            if i == 0 :
+                train_adv_images = adv_train_data["adv"]
+                train_adv_labels = adv_train_data["label"]
+                test_adv_images = adv_test_data["adv"]
+                test_adv_labels = adv_test_data["label"]   
+            else :
+#                 print(train_adv_images.shape)
+#                 print(adv_train_data["adv"].shape)
+                train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
+                train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
+                test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
+                test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
+                
+            test_adv_images_on_train = train_adv_images
+            test_adv_labels_on_train = train_adv_labels
+            test_adv_images_on_test = test_adv_images
+            test_adv_labels_on_test = test_adv_labels
+
     elif args.test_adversarial in ["ffgsm", "mifgsm", "tpgd"] :
         adv_data = {}
         adv_data["adv"], adv_data["label"] = torch.load(train_path)
-        test_cross_robust_images_on_train = adv_data["adv"].numpy()
-        test_cross_robust_labels_on_train = adv_data["label"].numpy()
+        test_adv_images_on_train = adv_data["adv"].numpy()
+        test_adv_labels_on_train = adv_data["label"].numpy()
         adv_data = {}
         adv_data["adv"], adv_data["label"] = torch.load(test_path)
-        test_cross_robust_images_on_test = adv_data["adv"].numpy()
-        test_cross_robust_labels_on_test = adv_data["label"].numpy()
+        test_adv_images_on_test = adv_data["adv"].numpy()
+        test_adv_labels_on_test = adv_data["label"].numpy()
     else :
         raise ValueError("Unknown adversarial data")
     
     print("Test Adv Attack Data: ", args.test_adversarial)
     
-    test_cross_robust_on_train_set = list(zip(test_cross_robust_images_on_train,
-        test_cross_robust_labels_on_train))
+    test_adv_on_train_set = list(zip(test_adv_images_on_train,
+        test_adv_labels_on_train))
     
-    test_cross_robust_on_train_batches = Batches(test_cross_robust_on_train_set, args.batch_size, shuffle=False, set_random_choices=False, num_workers=4)
+    test_adv_on_train_batches = Batches(test_adv_on_train_set, args.batch_size, shuffle=False, set_random_choices=False, num_workers=4)
     
-    test_cross_robust_on_test_set = list(zip(test_cross_robust_images_on_test,
-        test_cross_robust_labels_on_test))
+    test_adv_on_test_set = list(zip(test_adv_images_on_test,
+        test_adv_labels_on_test))
         
-    test_cross_robust_on_test_batches = Batches(test_cross_robust_on_test_set, args.batch_size, shuffle=False, num_workers=4)
+    test_adv_on_test_batches = Batches(test_adv_on_test_set, args.batch_size, shuffle=False, num_workers=4)
 
 
     # Set perturbations
@@ -428,15 +444,15 @@ def main():
         criterion = nn.CrossEntropyLoss()
 
     # If we use freeAT or fastAT with previous init
-    if args.attack == 'free':
+    if args.train_adversarial == 'free':
         delta = torch.zeros(args.batch_size, 3, 32, 32).cuda()
         delta.requires_grad = True
-    elif args.attack == 'fgsm' and args.fgsm_init == 'previous':
+    elif args.train_adversarial == 'fgsm' and args.fgsm_init == 'previous':
         delta = torch.zeros(args.batch_size, 3, 32, 32).cuda()
         delta.requires_grad = True
 
-    if args.attack == 'free':
-        epochs = int(math.ceil(args.epochs / args.attack_iters))
+    if args.train_adversarial == 'free':
+        epochs = int(math.ceil(args.epochs / args.train_adversarial_iters))
     else:
         epochs = args.epochs
 
@@ -540,7 +556,7 @@ def main():
         else:
             return 3
 
-    best_test_robust_acc = 0
+    best_test_adv_acc = 0
     best_val_robust_acc = 0
     if args.resume:
         start_epoch = args.resume
@@ -548,7 +564,7 @@ def main():
         opt.load_state_dict(torch.load(os.path.join(args.fname, f'opt_{start_epoch-1}.pth')))
         logger.info(f'Resuming at epoch {start_epoch}')
 
-        best_test_robust_acc = torch.load(os.path.join(args.fname, f'model_best.pth'))['test_robust_acc']
+        best_test_adv_acc = torch.load(os.path.join(args.fname, f'model_best.pth'))['test_adv_acc']
         if args.val:
             best_val_robust_acc = torch.load(os.path.join(args.fname, f'model_val.pth'))['val_robust_acc']
     else:
@@ -574,21 +590,15 @@ def main():
     y_original = np.array([])
     y_original_pred = np.array([])
 
-    test_robust_loss = 0
-    test_robust_acc = 0
-    test_robust_n = 0
-    y_robust = np.array([])
-    y_robust_pred = np.array([])
+    test_adv_test_loss = 0
+    test_adv_test_acc = 0
+    test_adv_test_n = 0
+    y_adv = np.array([])
+    y_adv_pred = np.array([])
 
-    test_cross_robust_test_loss = 0
-    test_cross_robust_test_acc = 0
-    test_cross_robust_test_n = 0
-    y_cross_robust = np.array([])
-    y_cross_robust_pred = np.array([])
-
-    test_cross_robust_train_loss = 0
-    test_cross_robust_train_acc = 0
-    test_cross_robust_train_n = 0
+    test_adv_train_loss = 0
+    test_adv_train_acc = 0
+    test_adv_train_n = 0
     
 
 
@@ -606,95 +616,65 @@ def main():
         y_original = np.append(y_original, y.cpu().numpy())
         y_original_pred = np.append(y_original_pred, output.max(1)[1].cpu().numpy())
 
-    for i, batch in enumerate(test_robust_batches):
-        adv_input = normalize(batch['input'])
-        y = batch['target']
 
-        robust_output = model(adv_input)
-        robust_loss = criterion(robust_output, y)
-
-        test_robust_loss += robust_loss.item() * y.size(0)
-        test_robust_acc += (robust_output.max(1)[1] == y).sum().item()
-        test_robust_n += y.size(0)
-        
-        y_robust = np.append(y_robust, y.cpu().numpy())
-        y_robust_pred = np.append(y_robust_pred, robust_output.max(1)[1].cpu().numpy())
-
-
-    for i, batch in enumerate(test_cross_robust_on_test_batches):
+    for i, batch in enumerate(test_adv_on_test_batches):
         adv_input = normalize(batch['input'])
         y = batch['target']
 
         cross_robust_output = model(adv_input)
         cross_robust_loss = criterion(cross_robust_output, y)
 
-        test_cross_robust_test_loss += cross_robust_loss.item() * y.size(0)
-        test_cross_robust_test_acc += (cross_robust_output.max(1)[1] == y).sum().item()
-        test_cross_robust_test_n += y.size(0)
+        test_adv_test_loss += cross_robust_loss.item() * y.size(0)
+        test_adv_test_acc += (cross_robust_output.max(1)[1] == y).sum().item()
+        test_adv_test_n += y.size(0)
 
-        y_cross_robust = np.append(y_cross_robust, y.cpu().numpy())
-        y_cross_robust_pred = np.append(y_cross_robust_pred, cross_robust_output.max(1)[1].cpu().numpy())
+        y_adv = np.append(y_adv, y.cpu().numpy())
+        y_adv_pred = np.append(y_adv_pred, cross_robust_output.max(1)[1].cpu().numpy())
 
         
-    for i, batch in enumerate(test_cross_robust_on_train_batches):
+    for i, batch in enumerate(test_adv_on_train_batches):
         adv_input = normalize(batch['input'])
         y = batch['target']
 
         cross_robust_output = model(adv_input)
         cross_robust_loss = criterion(cross_robust_output, y)
 
-        test_cross_robust_train_loss += cross_robust_loss.item() * y.size(0)
-        test_cross_robust_train_acc += (cross_robust_output.max(1)[1] == y).sum().item()
-        test_cross_robust_train_n += y.size(0)
+        test_adv_train_loss += cross_robust_loss.item() * y.size(0)
+        test_adv_train_acc += (cross_robust_output.max(1)[1] == y).sum().item()
+        test_adv_train_n += y.size(0)
 
     test_time = time.time()
 
-    logger.info("Test Acc \tTest Robust Acc \tCross Robust Acc on Test \tCross Robust Acc on Train")
-    logger.info('%.4f \t\t %.4f \t\t\t %.4f \t\t\t %.4f', 
+    logger.info("Test Acc \tTest Robust Acc on Test \tTest Robust Acc on Train")
+    logger.info('%.4f \t\t %.4f \t\t %.4f', 
                 test_acc/test_n,
-                test_robust_acc/test_robust_n,
-                test_cross_robust_test_acc/test_cross_robust_test_n,
-                test_cross_robust_train_acc/test_cross_robust_train_n)
+                test_adv_test_acc/test_adv_test_n,
+                test_adv_train_acc/test_adv_train_n)
 
     
     y_original = y_original.astype(np.int)
     y_original_pred = y_original_pred.astype(np.int)
 
-    y_robust = y_robust.astype(np.int)
-    y_robust_pred = y_robust_pred.astype(np.int)
-
-    y_cross_robust = y_cross_robust.astype(np.int)
-    y_cross_robust_pred = y_cross_robust_pred.astype(np.int)
+    y_adv = y_adv.astype(np.int)
+    y_adv_pred = y_adv_pred.astype(np.int)
     
-    logger.info("y_original")
+    logger.info("Y_original")
     logger.info(y_original)
-    np.savetxt(os.path.join(eval_dir, "y_original.txt"), y_original,  fmt='%i')
+    np.savetxt(os.path.join(eval_dir, "Y_original.txt"), y_original,  fmt='%i')
     
-    logger.info("y_original_pred")
+    logger.info("Y_original_pred")
     logger.info(y_original_pred)
-    np.savetxt(os.path.join(eval_dir, "y_original_pred.txt"), y_original_pred, fmt='%i')
+    np.savetxt(os.path.join(eval_dir, "Y_original_pred.txt"), y_original_pred, fmt='%i')
     
-    logger.info("y_robust")
-    logger.info(y_robust)
-    np.savetxt(os.path.join(eval_dir, "y_robust.txt"), y_robust, fmt='%i')
-    
-    logger.info("y_robust_pred")
-    logger.info(y_robust_pred)
-    np.savetxt(os.path.join(eval_dir, "y_robust_pred.txt"), y_robust_pred, fmt='%i')
-    
-    logger.info("y_cross_robust")
-    logger.info(y_cross_robust)
-    np.savetxt(os.path.join(eval_dir, "y_cross_robust.txt"), y_cross_robust, fmt='%i')
+    logger.info("Y_adv")
+    logger.info(y_adv)
+    np.savetxt(os.path.join(eval_dir, "Y_adv.txt"), y_adv, fmt='%i')
     
     
-    logger.info("y_cross_robust_pred")
-    logger.info(y_cross_robust_pred)
-    np.savetxt(os.path.join(eval_dir, "y_cross_robust_pred.txt"), y_cross_robust_pred, fmt='%i')
+    logger.info("Y_adv_pred")
+    logger.info(y_adv_pred)
+    np.savetxt(os.path.join(eval_dir, "Y_adv_pred.txt"), y_adv_pred, fmt='%i')
     
-#     print(y_original == y_robust)
     
-#     print(y_cross_robust == y_robust)
-    
-
 if __name__ == "__main__":
     main()
