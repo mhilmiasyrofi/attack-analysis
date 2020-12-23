@@ -10,6 +10,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+import torchvision
+from torchvision import datasets, transforms
+
+
 import os
 
 from wideresnet import WideResNet
@@ -37,7 +41,7 @@ def clamp(X, lower_limit, upper_limit):
 
 
 class Batches():
-    def __init__(self, dataset, batch_size, shuffle, set_random_choices=False, num_workers=0, drop_last=False):
+    def __init__(self, dataset, batch_size, shuffle, set_random_choices=False, num_workers=0, drop_last=True):
         self.dataset = dataset
         self.batch_size = batch_size
         self.set_random_choices = set_random_choices
@@ -76,17 +80,16 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='ResNet18')
+    parser.add_argument('--attack', default='autoattack', type=str)
     parser.add_argument('--l2', default=0, type=float)
     parser.add_argument('--l1', default=0, type=float)
-    parser.add_argument('--batch-size', default=128, type=int)
-    parser.add_argument('--batch-size-test', default=128, type=int)
+    parser.add_argument('--batch-size', default=256, type=int)
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
     parser.add_argument('--lr-schedule', default='piecewise', choices=['superconverge', 'piecewise', 'linear', 'piecewisesmoothed', 'piecewisezoom', 'onedrop', 'multipledecay', 'cosine', 'cyclic'])
     parser.add_argument('--lr-max', default=0.1, type=float)
     parser.add_argument('--lr-one-drop', default=0.01, type=float)
     parser.add_argument('--lr-drop-epoch', default=100, type=int)
-    parser.add_argument('--attack', default='autoattack', type=str)
     parser.add_argument('--epsilon', default=8, type=int)
     parser.add_argument('--attack-iters', default=10, type=int)
     parser.add_argument('--attack-iters-test', default=20, type=int)
@@ -137,39 +140,58 @@ def main():
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
-
-    transforms = [Crop(32, 32), FlipLR()]
-    if args.cutout:
-        transforms.append(Cutout(args.cutout_len, args.cutout_len))
     
-    dataset = cifar10(args.data_dir)
-    x_train = transpose(pad(dataset['train']['data'], 4)/255.)
-    y_train = dataset['train']['labels']
+    # setup data loader
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+    ])
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+    ])
+    train_set = torchvision.datasets.CIFAR10(root='../data', train=True, download=True, transform=transform_train)
+    test_set = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform_test)
 
-    if args.attack != "all" :
-        train_set = list(zip(x_train, y_train))    
-    else :
-#         print("Shape")
-#         print(x_train.shape)
-        train_data = np.array(x_train)
-        train_labels = np.array(y_train)
+    if args.attack == "all" :
+        train_data = np.array(train_set.data) / 255.
+        train_data = transpose(train_data).astype(np.float32)
+
+        train_labels = np.array(train_set.targets)
+
+        oversampled_train_data = np.tile(train_data, 11)
+        oversampled_train_labels = np.tile(train_labels, 11)
+
+#         for i in range(10) :
+#             oversampled_train_data = np.concatenate((oversampled_train_data, train_data))
+#             oversampled_train_labels = np.concatenate((oversampled_train_labels, train_labels))
+        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels)))
+
+    elif args.attack == "combine" :
+        train_data = np.array(train_set.data) / 255.
+        train_data = transpose(train_data).astype(np.float32)
+
+        train_labels = np.array(train_set.targets)
 
         oversampled_train_data = train_data.copy()
         oversampled_train_labels = train_labels.copy()
 
-        for i in range(10) :
+        logger.info("Attacks")
+        attacks = args.list.split("_")
+        logger.info(attacks)
+
+        for i in range(len(attacks)-1) :
             oversampled_train_data = np.concatenate((oversampled_train_data, train_data))
             oversampled_train_labels = np.concatenate((oversampled_train_labels, train_labels))
 
-        train_set = list(zip(oversampled_train_data, oversampled_train_labels))
-    
-    train_set_x = Transform(train_set, transforms)
-    train_batches = Batches(train_set_x, args.batch_size, shuffle=True, set_random_choices=True, num_workers=1)
+        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels))) 
+
+    shuffle = True
+    if args.attack == "all" :
+        shuffle = False
         
-
-    test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
-    test_batches = Batches(test_set, args.batch_size_test, shuffle=False, num_workers=1)
-
+    train_batches = Batches(train_set, args.batch_size, shuffle=shuffle)
+    test_batches = Batches(test_set, args.batch_size, shuffle=False)
     
     train_adv_images = None
     train_adv_labels = None
@@ -198,8 +220,10 @@ def main():
         test_adv_images = adv_data["adv"].numpy()
         test_adv_labels = adv_data["label"].numpy()
     elif args.attack == "all" :
+        print("Loading attacks")
         ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
         for i in range(len(ATTACK_LIST)):
+            print("Attack: ", ATTACK_LIST[i])
             _adv_dir = "adv_examples/{}/".format(ATTACK_LIST[i])
             train_path = _adv_dir + "train.pth" 
             test_path = _adv_dir + "test.pth"
@@ -230,12 +254,12 @@ def main():
     train_adv_set = list(zip(train_adv_images,
         train_adv_labels))
     
-    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=True, set_random_choices=False, num_workers=4)
-    
+    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=0)
+        
     test_adv_set = list(zip(test_adv_images,
         test_adv_labels))
         
-    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=4)
+    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=0)
     
     epsilon = (args.epsilon / 255.)
     pgd_alpha = (args.pgd_alpha / 255.)
@@ -332,8 +356,41 @@ def main():
             logger.info("No model loaded to evaluate, specify with --resume FNAME")
             return
         logger.info("[Evaluation mode]")
+        
+    model.cuda()
+    model.eval()
+    
+    # Evaluate on original test data
+    test_acc = 0
+    test_n = 0
+    
+    for i, batch in enumerate(test_batches):
+        X, y = batch['input'], batch['target']
 
-    logger.info('Epoch \t Train Time \t Test Time \t LR \t \t Train Loss \t Train Acc \t Train Robust Loss \t Train Robust Acc \t Test Loss \t Test Acc \t Test Robust Loss \t Test Robust Acc')
+        clean_input = normalize(X)
+        output = model(clean_input)
+        
+        test_acc += (output.max(1)[1] == y).sum().item()
+        test_n += y.size(0)
+        
+    logger.info('Intial Accuracy on Original Test Data: %.4f (Test Acc)', test_acc/test_n)
+    
+    test_adv_acc = 0
+    test_adv_n = 0
+        
+    for i, batch in enumerate(test_adv_batches):                            
+        adv_input = normalize(batch['input'])
+        y = batch['target']
+
+        robust_output = model(adv_input)
+        test_adv_acc += (robust_output.max(1)[1] == y).sum().item()
+        test_adv_n += y.size(0)
+    
+    logger.info('Intial Accuracy on Adversarial Test Data: %.4f (Test Robust Acc)', test_adv_acc/test_adv_n)
+        
+    model.train()
+
+    logger.info('Epoch \t Train Acc \t Train Robust Acc \t Test Acc \t Test Robust Acc')
     for epoch in range(start_epoch, epochs):
         start_time = time.time()
         train_loss = 0
@@ -420,51 +477,26 @@ def main():
         test_time = time.time()
 
 
-        if not args.eval:
-            logger.info('%d \t %.1f \t \t %.1f \t \t %.4f \t %.4f \t %.4f \t %.4f \t \t %.4f \t \t %.4f \t %.4f \t %.4f \t \t %.4f',
-                epoch, train_time - start_time, test_time - train_time, lr,
-                train_loss/train_n, train_acc/train_n, train_robust_loss/train_n, train_robust_acc/train_n,
-                test_loss/test_n, test_acc/test_n, test_robust_loss/test_n, test_robust_acc/test_n)
+        logger.info('%d \t %.1f \t\t %.1f \t\t\t %.4f \t %.4f',
+            epoch, train_acc/train_n, train_robust_acc/train_n,
+            test_acc/test_n, test_robust_acc/test_n)
 
-            if args.val:
-                logger.info('validation %.4f \t %.4f \t %.4f \t %.4f',
-                    val_loss/val_n, val_acc/val_n, val_robust_loss/val_n, val_robust_acc/val_n)
+        # save checkpoint
+        if (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
+            torch.save(model.state_dict(), os.path.join(fname, f'model_{epoch}.pth'))
+            torch.save(opt.state_dict(), os.path.join(fname, f'opt_{epoch}.pth'))
 
-                if val_robust_acc/val_n > best_val_robust_acc:
-                    torch.save({
-                            'state_dict':model.state_dict(),
-                            'test_robust_acc':test_robust_acc/test_n,
-                            'test_robust_loss':test_robust_loss/test_n,
-                            'test_loss':test_loss/test_n,
-                            'test_acc':test_acc/test_n,
-                            'val_robust_acc':val_robust_acc/val_n,
-                            'val_robust_loss':val_robust_loss/val_n,
-                            'val_loss':val_loss/val_n,
-                            'val_acc':val_acc/val_n,
-                        }, os.path.join(fname, f'model_val.pth'))
-                    best_val_robust_acc = val_robust_acc/val_n
+        # save best
+        if test_robust_acc/test_n > best_test_robust_acc:
+            torch.save({
+                    'state_dict':model.state_dict(),
+                    'test_robust_acc':test_robust_acc/test_n,
+                    'test_robust_loss':test_robust_loss/test_n,
+                    'test_loss':test_loss/test_n,
+                    'test_acc':test_acc/test_n,
+                }, os.path.join(fname, f'model_best.pth'))
+            best_test_robust_acc = test_robust_acc/test_n
 
-            # save checkpoint
-            if (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
-                torch.save(model.state_dict(), os.path.join(fname, f'model_{epoch}.pth'))
-                torch.save(opt.state_dict(), os.path.join(fname, f'opt_{epoch}.pth'))
-
-            # save best
-            if test_robust_acc/test_n > best_test_robust_acc:
-                torch.save({
-                        'state_dict':model.state_dict(),
-                        'test_robust_acc':test_robust_acc/test_n,
-                        'test_robust_loss':test_robust_loss/test_n,
-                        'test_loss':test_loss/test_n,
-                        'test_acc':test_acc/test_n,
-                    }, os.path.join(fname, f'model_best.pth'))
-                best_test_robust_acc = test_robust_acc/test_n
-        else:
-            logger.info('%d \t %.1f \t \t %.1f \t \t %.4f \t %.4f \t %.4f \t %.4f \t \t %.4f \t \t %.4f \t %.4f \t %.4f \t \t %.4f',
-                epoch, train_time - start_time, test_time - train_time, -1,
-                -1, -1, -1, -1,
-                test_loss/test_n, test_acc/test_n, test_robust_loss/test_n, test_robust_acc/test_n)
-            return
 
 
 if __name__ == "__main__":
