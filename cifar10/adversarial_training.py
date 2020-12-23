@@ -356,8 +356,8 @@ def main():
     
     train_adv_images = None
     train_adv_labels = None
-    test_robust_images = None
-    test_robust_labels = None
+    test_adv_images = None
+    test_adv_labels = None
 
     adv_dir = "adv_examples/{}/".format(args.attack)
     train_path = adv_dir + "train.pth" 
@@ -371,8 +371,8 @@ def main():
         train_adv_images = adv_train_data["adv"]
         train_adv_labels = adv_train_data["label"]
         adv_test_data = torch.load(test_path)
-        test_robust_images = adv_test_data["adv"]
-        test_robust_labels = adv_test_data["label"]        
+        test_adv_images = adv_test_data["adv"]
+        test_adv_labels = adv_test_data["label"]        
     elif args.attack in ["ffgsm", "mifgsm", "tpgd"] :
         adv_data = {}
         adv_data["adv"], adv_data["label"] = torch.load(train_path)
@@ -380,8 +380,8 @@ def main():
         train_adv_labels = adv_data["label"].numpy()
         adv_data = {}
         adv_data["adv"], adv_data["label"] = torch.load(test_path)
-        test_robust_images = adv_data["adv"].numpy()
-        test_robust_labels = adv_data["label"].numpy()
+        test_adv_images = adv_data["adv"].numpy()
+        test_adv_labels = adv_data["label"].numpy()
     elif args.attack == "all" :
         
         for i in range(len(ATTACK_LIST)):
@@ -395,15 +395,15 @@ def main():
             if i == 0 :
                 train_adv_images = adv_train_data["adv"]
                 train_adv_labels = adv_train_data["label"]
-                test_robust_images = adv_test_data["adv"]
-                test_robust_labels = adv_test_data["label"]   
+                test_adv_images = adv_test_data["adv"]
+                test_adv_labels = adv_test_data["label"]   
             else :
 #                 print(train_adv_images.shape)
 #                 print(adv_train_data["adv"].shape)
                 train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
                 train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
-                test_robust_images = np.concatenate((test_robust_images, adv_test_data["adv"]))
-                test_robust_labels = np.concatenate((test_robust_labels, adv_test_data["label"]))
+                test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
+                test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
     elif args.attack == "combine" :
         
 #         for i in range(len(ATTACK_LIST)):
@@ -413,11 +413,11 @@ def main():
 #             adv_test_data = torch.load(test_path)
 
 #             if i == 0 :
-#                 test_robust_images = adv_test_data["adv"]
-#                 test_robust_labels = adv_test_data["label"]   
+#                 test_adv_images = adv_test_data["adv"]
+#                 test_adv_labels = adv_test_data["label"]   
 #             else :
-#                 test_robust_images = np.concatenate((test_robust_images, adv_test_data["adv"]))
-#                 test_robust_labels = np.concatenate((test_robust_labels, adv_test_data["label"]))
+#                 test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
+#                 test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
 
         print("Attacks")
         attacks = args.list.split("_")
@@ -435,15 +435,15 @@ def main():
                 if i == 0 :
                     train_adv_images = adv_train_data["adv"]
                     train_adv_labels = adv_train_data["label"]
-                    test_robust_images = adv_test_data["adv"]
-                    test_robust_labels = adv_test_data["label"]   
+                    test_adv_images = adv_test_data["adv"]
+                    test_adv_labels = adv_test_data["label"]   
                 else :
     #                 print(train_adv_images.shape)
     #                 print(adv_train_data["adv"].shape)
                     train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
                     train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
-                    test_robust_images = np.concatenate((test_robust_images, adv_test_data["adv"]))
-                    test_robust_labels = np.concatenate((test_robust_labels, adv_test_data["label"]))
+                    test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
+                    test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
         else :
             proportion_str = args.balanced.split("_")
             proportion = [int(x) for x in proportion_str]
@@ -474,15 +474,15 @@ def main():
 #                     resample(y, n_samples=2, random_state=0)
                     train_adv_images = resample(adv_train_data["adv"], n_samples=n_samples, random_state=random_state)
                     train_adv_labels = resample(adv_train_data["label"], n_samples=n_samples, random_state=random_state)
-                    test_robust_images = resample(adv_test_data["adv"], n_samples=n_samples, random_state=random_state)
-                    test_robust_labels = resample(adv_test_data["label"], n_samples=n_samples, random_state=random_state)   
+                    test_adv_images = resample(adv_test_data["adv"], n_samples=n_samples, random_state=random_state)
+                    test_adv_labels = resample(adv_test_data["label"], n_samples=n_samples, random_state=random_state)   
                 else :
     #                 print(train_adv_images.shape)
     #                 print(adv_train_data["adv"].shape)
                     train_adv_images = np.concatenate((train_adv_images, resample(adv_train_data["adv"], n_samples=n_samples, random_state=random_state)))
                     train_adv_labels = np.concatenate((train_adv_labels, resample(adv_train_data["label"], n_samples=n_samples, random_state=random_state)))
-                    test_robust_images = np.concatenate((test_robust_images, resample(adv_test_data["adv"], n_samples=n_samples, random_state=random_state)))
-                    test_robust_labels = np.concatenate((test_robust_labels, resample(adv_test_data["label"], n_samples=n_samples, random_state=random_state)))
+                    test_adv_images = np.concatenate((test_adv_images, resample(adv_test_data["adv"], n_samples=n_samples, random_state=random_state)))
+                    test_adv_labels = np.concatenate((test_adv_labels, resample(adv_test_data["label"], n_samples=n_samples, random_state=random_state)))
 
 
     else :
@@ -500,10 +500,10 @@ def main():
     
     train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=False, set_random_choices=False, num_workers=4)
     
-    test_robust_set = list(zip(test_robust_images,
-        test_robust_labels))
+    test_adv_set = list(zip(test_adv_images,
+        test_adv_labels))
         
-    test_robust_batches = Batches(test_robust_set, args.batch_size, shuffle=False, num_workers=4)
+    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=4)
         
     # Set perturbations
     epsilon = (args.epsilon / 255.)
@@ -641,8 +641,6 @@ def main():
             return min_lr + (max_lr - min_lr) * relative
 
 
-
-
     #### Set stronger adv attacks when decay the lr ####
     def eps_alpha_schedule(t, warm_up_eps = args.warmup_eps, if_use_stronger_adv=args.use_stronger_adv, stronger_index=args.stronger_index): # Schedule number 0
         if stronger_index == 0:
@@ -682,7 +680,7 @@ def main():
         else:
             return 3
 
-    best_test_robust_acc = 0
+    best_test_adv_acc = 0
     best_val_robust_acc = 0
     if args.resume:
         start_epoch = args.resume
@@ -690,7 +688,7 @@ def main():
         opt.load_state_dict(torch.load(os.path.join(args.fname, f'opt_{start_epoch-1}.pth')))
         logger.info(f'Resuming at epoch {start_epoch}')
 
-        best_test_robust_acc = torch.load(os.path.join(args.fname, f'model_best.pth'))['test_robust_acc']
+        best_test_adv_acc = torch.load(os.path.join(args.fname, f'model_best.pth'))['test_adv_acc']
         if args.val:
             best_val_robust_acc = torch.load(os.path.join(args.fname, f'model_val.pth'))['val_robust_acc']
     else:
@@ -721,18 +719,18 @@ def main():
         
     logger.info('Intial Accuracy on Original Test Data: %.4f (Test Acc)', test_acc/test_n)
     
-    test_robust_acc = 0
-    test_robust_n = 0
+    test_adv_acc = 0
+    test_adv_n = 0
         
-    for i, batch in enumerate(test_robust_batches):                            
+    for i, batch in enumerate(test_adv_batches):                            
         adv_input = normalize(batch['input'])
         y = batch['target']
 
         robust_output = model(adv_input)
-        test_robust_acc += (robust_output.max(1)[1] == y).sum().item()
-        test_robust_n += y.size(0)
+        test_adv_acc += (robust_output.max(1)[1] == y).sum().item()
+        test_adv_n += y.size(0)
     
-    logger.info('Intial Accuracy on Adversarial Test Data: %.4f (Test Robust Acc)', test_robust_acc/test_robust_n)
+    logger.info('Intial Accuracy on Adversarial Test Data: %.4f (Test Robust Acc)', test_adv_acc/test_adv_n)
         
     model.train()
     
@@ -749,8 +747,8 @@ def main():
 
     test_loss_record = []
     test_acc_record = []
-    test_robust_loss_record = []
-    test_robust_acc_record = []
+    test_adv_loss_record = []
+    test_adv_acc_record = []
     test_grad_record = []
 
     for epoch in range(start_epoch, epochs):
@@ -855,9 +853,9 @@ def main():
         test_acc = 0
         test_n = 0
         
-        test_robust_loss = 0
-        test_robust_acc = 0
-        test_robust_n = 0
+        test_adv_loss = 0
+        test_adv_acc = 0
+        test_adv_n = 0
         
         for i, batch in enumerate(test_batches):
             X, y = batch['input'], batch['target']
@@ -870,23 +868,23 @@ def main():
             test_acc += (output.max(1)[1] == y).sum().item()
             test_n += y.size(0)
             
-        for i, batch in enumerate(test_robust_batches):                            
+        for i, batch in enumerate(test_adv_batches):                            
             adv_input = normalize(batch['input'])
             y = batch['target']
 
             robust_output = model(adv_input)
             robust_loss = criterion(robust_output, y)
 
-            test_robust_loss += robust_loss.item() * y.size(0)
-            test_robust_acc += (robust_output.max(1)[1] == y).sum().item()
-            test_robust_n += y.size(0)
+            test_adv_loss += robust_loss.item() * y.size(0)
+            test_adv_acc += (robust_output.max(1)[1] == y).sum().item()
+            test_adv_n += y.size(0)
 
         test_time = time.time()
 
 
 
         logger.info('%d \t %.4f \t %.4f \t\t %.4f \t %.4f',
-            epoch+1, train_acc/train_n, train_robust_acc/train_n, test_acc/test_n, test_robust_acc/test_robust_n)
+            epoch+1, train_acc/train_n, train_robust_acc/train_n, test_acc/test_n, test_adv_acc/test_adv_n)
 
         # Save results
         train_loss_record.append(train_loss/train_n)
@@ -901,13 +899,13 @@ def main():
 
         test_loss_record.append(test_loss/train_n)
         test_acc_record.append(test_acc/train_n)
-        test_robust_loss_record.append(test_robust_loss/train_n)
-        test_robust_acc_record.append(test_robust_acc/train_n)
+        test_adv_loss_record.append(test_adv_loss/train_n)
+        test_adv_acc_record.append(test_adv_acc/train_n)
 
         np.savetxt(args.fname+'/test_loss_record.txt', np.array(test_loss_record))
         np.savetxt(args.fname+'/test_acc_record.txt', np.array(test_acc_record))
-        np.savetxt(args.fname+'/test_robust_loss_record.txt', np.array(test_robust_loss_record))
-        np.savetxt(args.fname+'/test_robust_acc_record.txt', np.array(test_robust_acc_record))
+        np.savetxt(args.fname+'/test_adv_loss_record.txt', np.array(test_adv_loss_record))
+        np.savetxt(args.fname+'/test_adv_acc_record.txt', np.array(test_adv_acc_record))
 
         # save checkpoint
         if epoch > 99 or (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
@@ -915,15 +913,15 @@ def main():
             torch.save(opt.state_dict(), os.path.join(args.fname, f'opt_{epoch}.pth'))
 
         # save best
-        if test_robust_acc/test_n > best_test_robust_acc:
+        if test_adv_acc/test_n > best_test_adv_acc:
             torch.save({
                     'state_dict':model.state_dict(),
-                    'test_robust_acc':test_robust_acc/test_n,
-                    'test_robust_loss':test_robust_loss/test_n,
+                    'test_adv_acc':test_adv_acc/test_n,
+                    'test_adv_loss':test_adv_loss/test_n,
                     'test_loss':test_loss/test_n,
                     'test_acc':test_acc/test_n,
                 }, os.path.join(args.fname, f'model_best.pth'))
-            best_test_robust_acc = test_robust_acc/test_n
+            best_test_adv_acc = test_adv_acc/test_n
 
 if __name__ == "__main__":
     main()
