@@ -62,7 +62,30 @@ class Cutout(namedtuple('Cutout', ('h', 'w'))):
         C, H, W = x_shape
         return {'x0': range(W+1-self.w), 'y0': range(H+1-self.h)} 
     
-
+class Transform():
+    def __init__(self, dataset, transforms):
+        self.dataset, self.transforms = dataset, transforms
+        self.choices = None
+        
+    def __len__(self):
+        return len(self.dataset)
+           
+    def __getitem__(self, index):
+        data, labels = self.dataset[index]
+        for choices, f in zip(self.choices, self.transforms):
+            args = {k: v[index] for (k,v) in choices.items()}
+            data = f(data, **args)
+        return data, labels
+    
+    def set_random_choices(self):
+        self.choices = []
+        x_shape = self.dataset[0][0].shape
+        N = len(self)
+        for t in self.transforms:
+            options = t.options(x_shape)
+            x_shape = t.output_shape(x_shape) if hasattr(t, 'output_shape') else x_shape
+            self.choices.append({k:np.random.choice(v, size=N) for (k,v) in options.items()})
+    
 #####################
 ## dataset
 #####################
