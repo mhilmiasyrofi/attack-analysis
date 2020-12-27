@@ -1,14 +1,14 @@
 #!/bin/bash
  
+# docker run -it --rm --name gpu0-bot -v /home/mhilmiasyrofi/Documents/Bag-of-Tricks-for-AT/:/workspace/Bag-of-Tricks-for-AT/ --gpus '"device=0"' mhilmiasyrofi/advtraining
+ 
 # Declare an array of string with type
-# declare -a adv=("autoattack" "bim" "cw" "deepfool" "ffgsm" "fgsm" "mifgsm" "newtonfool" "pgd" "jsma" "spatialtransformation" "squareattack" "tpgd")
+# declare -a adv=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
 
-# declare -a adv=("mifgsm" "pgd" "spatialtransformation" "squareattack" "tpgd")
-
-# declare -a adv=("autoattack" "fgsm" "pgd" "bim" "cw")
-# declare -a adv=("autopgd" "squareattack" "jsma")
-# declare -a adv=("deepfool" "newtonfool")
-declare -a adv=("pixelattack" "spatialtransformation")
+# declare -a adv=("autoattack" "autopgd" "bim" )
+# declare -a adv=("cw" "deepfool" "fgsm" "newtonfool" )
+# declare -a adv=("pgd" "pixelattack")
+declare -a adv=("spatialtransformation" "squareattack")
 
 # Iterate the string array using for loop
 for a in ${adv[@]}; do
@@ -18,8 +18,8 @@ for a in ${adv[@]}; do
         --norm l_inf \
         --epsilon 8 \
         --epochs 110 \
-        --attack-iters 10 \
-        --pgd-alpha 2 \
+        --labelsmooth \
+        --labelsmoothvalue 0.3 \
         --fname auto \
         --optimizer 'momentum' \
         --weight_decay 5e-4 \
@@ -33,10 +33,39 @@ done
 #     --norm l_inf \
 #     --epsilon 8 \
 #     --epochs 110 \
-#     --attack-iters 10 \
-#     --pgd-alpha 2 \
+#     --labelsmooth \
+#     --labelsmoothvalue 0.3 \
 #     --fname auto \
 #     --optimizer 'momentum' \
 #     --weight_decay 5e-4 \
 #     --batch-size 128 \
 #     --BNeval 
+
+python adversarial_training.py --model resnet18 \
+    --attack all \
+    --lr-schedule piecewise \
+    --norm l_inf \
+    --epsilon 8 \
+    --epochs 110 \
+    --labelsmooth \
+    --labelsmoothvalue 0.3 \
+    --fname auto \
+    --optimizer 'momentum' \
+    --weight_decay 5e-4 \
+    --batch-size 128 \
+    --BNeval
+
+python adversarial_training.py --model resnet18 \
+    --attack combine \
+    --list newtonfool_pixelattack_spatialtransformation_squareattack \
+    --lr-schedule piecewise \
+    --norm l_inf \
+    --epsilon 8 \
+    --epochs 110 \
+    --labelsmooth \
+    --labelsmoothvalue 0.3 \
+    --fname auto \
+    --optimizer 'momentum' \
+    --weight_decay 5e-4 \
+    --batch-size 128 \
+    --BNeval
