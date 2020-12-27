@@ -10,6 +10,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+import torchvision
+from torchvision import datasets, transforms
+
+
 from sklearn.utils import resample
 
 import os
@@ -294,65 +298,53 @@ def main():
     torch.cuda.manual_seed(args.seed)
 
 
-    # Prepare data
-    dataset = cifar10(args.data_dir)
-    
-    x_train = (dataset['train']['data']/255.)
-    x_test = (dataset['test']['data']/255.)
-    x_train = transpose(x_train).astype(np.float32)
-    x_test = transpose(x_test).astype(np.float32)
-    
-    y_train = dataset['train']['labels']
-    y_test = dataset['test']['labels']
+    # setup data loader
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+    ])
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+    ])
+    train_set = torchvision.datasets.CIFAR10(root='../data', train=True, download=True, transform=transform_train)
+    test_set = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform_test)
 
-    test_set = list(zip(x_test, y_test))
+    if args.attack == "all" :
+        train_data = np.array(train_set.data) / 255.
+        train_data = transpose(train_data).astype(np.float32)
 
-    if args.attack == "combine" and args.balanced == None:
-        train_data = x_train
+        train_labels = np.array(train_set.targets)
+        
+        oversampled_train_data = np.tile(train_data, (11,1,1,1))
+        oversampled_train_labels = np.tile(train_labels, (11))
 
-        train_labels = np.array(y_train)
+        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels)))
+
+
+    elif args.attack == "combine" :
+        train_data = np.array(train_set.data) / 255.
+        train_data = transpose(train_data).astype(np.float32)
+
+        train_labels = np.array(train_set.targets)
 
         oversampled_train_data = train_data.copy()
         oversampled_train_labels = train_labels.copy()
-                
-        print("Attacks")
+
+        logger.info("Attacks")
         attacks = args.list.split("_")
-        print(attacks)
-
-        for i in range(len(attacks)-1) :
-            oversampled_train_data = np.concatenate((oversampled_train_data, train_data))
-            oversampled_train_labels = np.concatenate((oversampled_train_labels, train_labels))
+        logger.info(attacks)
+        
+        oversampled_train_data = np.tile(train_data, (len(attacks),1,1,1))
+        oversampled_train_labels = np.tile(train_labels, (len(attacks)))
 
         train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels))) 
 
-    elif args.attack == "all" :
+    shuffle = False
         
-        train_data = x_train
-
-        train_labels = np.array(y_train)
-
-        oversampled_train_data = train_data.copy()
-        oversampled_train_labels = train_labels.copy()
-
-        for i in range(10) :
-            oversampled_train_data = np.concatenate((oversampled_train_data, train_data))
-            oversampled_train_labels = np.concatenate((oversampled_train_labels, train_labels))
-
-        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels))) 
-    else :
-        train_set = list(zip(x_train, y_train))
-
-
+    train_batches = Batches(train_set, args.batch_size, shuffle=shuffle)
+    test_batches = Batches(test_set, args.batch_size, shuffle=False)
     
-    train_batches = Batches(train_set, args.batch_size, shuffle=False, set_random_choices=False, num_workers=4)
-    test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)
-    
-        
-    print("")
-    print("Original Data")
-    print("Dataset Length: ", len(train_set))
-#     print("Dataset type: ", type(dataset['train']['data']))
-#     print("Label shape: ", len(dataset['train']['labels']))
     
     train_adv_images = None
     train_adv_labels = None
@@ -406,19 +398,6 @@ def main():
                 test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
     elif args.attack == "combine" :
         
-#         for i in range(len(ATTACK_LIST)):
-#             _adv_dir = "adv_examples/{}/".format(ATTACK_LIST[i])
-#             test_path = _adv_dir + "test.pth"
-
-#             adv_test_data = torch.load(test_path)
-
-#             if i == 0 :
-#                 test_adv_images = adv_test_data["adv"]
-#                 test_adv_labels = adv_test_data["label"]   
-#             else :
-#                 test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
-#                 test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
-
         print("Attacks")
         attacks = args.list.split("_")
         print(attacks)
@@ -471,14 +450,11 @@ def main():
                 print(n_samples)
 
                 if i == 0 :
-#                     resample(y, n_samples=2, random_state=0)
                     train_adv_images = resample(adv_train_data["adv"], n_samples=n_samples, random_state=random_state)
                     train_adv_labels = resample(adv_train_data["label"], n_samples=n_samples, random_state=random_state)
                     test_adv_images = resample(adv_test_data["adv"], n_samples=n_samples, random_state=random_state)
                     test_adv_labels = resample(adv_test_data["label"], n_samples=n_samples, random_state=random_state)   
                 else :
-    #                 print(train_adv_images.shape)
-    #                 print(adv_train_data["adv"].shape)
                     train_adv_images = np.concatenate((train_adv_images, resample(adv_train_data["adv"], n_samples=n_samples, random_state=random_state)))
                     train_adv_labels = np.concatenate((train_adv_labels, resample(adv_train_data["label"], n_samples=n_samples, random_state=random_state)))
                     test_adv_images = np.concatenate((test_adv_images, resample(adv_test_data["adv"], n_samples=n_samples, random_state=random_state)))
@@ -498,7 +474,7 @@ def main():
     train_adv_set = list(zip(train_adv_images,
         train_adv_labels))
     
-    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=False, set_random_choices=False, num_workers=4)
+    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=4)
     
     test_adv_set = list(zip(test_adv_images,
         test_adv_labels))
