@@ -5,27 +5,27 @@
 # Declare an array of string with type
 # declare -a adv=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
 
-# declare -a adv=("autoattack" "autopgd" "bim" )
-# declare -a adv=("cw" "deepfool" "fgsm" "newtonfool" )
-# declare -a adv=("pgd" "pixelattack")
-declare -a adv=("spatialtransformation" "squareattack")
+# declare -a adv=("autoattack" "autopgd" "bim")
+# declare -a adv=("cw" "deepfool" "fgsm")
+# declare -a adv=("newtonfool" "pgd" "pixelattack")
+# declare -a adv=("spatialtransformation" "squareattack")
 
-# Iterate the string array using for loop
-for a in ${adv[@]}; do
-    python adversarial_training.py --model resnet18 \
-        --attack $a \
-        --lr-schedule piecewise \
-        --norm l_inf \
-        --epsilon 8 \
-        --epochs 110 \
-        --labelsmooth \
-        --labelsmoothvalue 0.3 \
-        --fname auto \
-        --optimizer 'momentum' \
-        --weight_decay 5e-4 \
-        --batch-size 256 \
-        --BNeval 
-done
+# # Iterate the string array using for loop
+# for a in ${adv[@]}; do
+#     python adversarial_training.py --model resnet18 \
+#         --attack $a \
+#         --lr-schedule piecewise \
+#         --norm l_inf \
+#         --epsilon 8 \
+#         --epochs 10 \
+#         --labelsmooth \
+#         --labelsmoothvalue 0.3 \
+#         --fname auto \
+#         --optimizer 'momentum' \
+#         --weight_decay 5e-4 \
+#         --batch-size 128 \
+#         --BNeval 
+# done
 
 # python adversarial_training.py --model resnet18 \
 #     --attack pgd \
@@ -38,26 +38,13 @@ done
 #     --fname auto \
 #     --optimizer 'momentum' \
 #     --weight_decay 5e-4 \
-#     --batch-size 128 \
+#     --batch-size 256 \
 #     --BNeval 
 
-python adversarial_training.py --model resnet18 \
-    --attack all \
-    --lr-schedule piecewise \
-    --norm l_inf \
-    --epsilon 8 \
-    --epochs 110 \
-    --labelsmooth \
-    --labelsmoothvalue 0.3 \
-    --fname auto \
-    --optimizer 'momentum' \
-    --weight_decay 5e-4 \
-    --batch-size 128 \
-    --BNeval
 
 python adversarial_training.py --model resnet18 \
     --attack combine \
-    --list newtonfool_pixelattack_spatialtransformation_squareattack \
+    --list cw_autopgd_pixelattack_spatialtransformation \
     --lr-schedule piecewise \
     --norm l_inf \
     --epsilon 8 \
@@ -69,3 +56,17 @@ python adversarial_training.py --model resnet18 \
     --weight_decay 5e-4 \
     --batch-size 128 \
     --BNeval
+
+# python adversarial_training.py --model resnet18 \
+#     --attack all \
+#     --lr-schedule piecewise \
+#     --norm l_inf \
+#     --epsilon 8 \
+#     --epochs 110 \
+#     --labelsmooth \
+#     --labelsmoothvalue 0.3 \
+#     --fname auto \
+#     --optimizer 'momentum' \
+#     --weight_decay 5e-4 \
+#     --batch-size 256 \
+#     --BNeval
