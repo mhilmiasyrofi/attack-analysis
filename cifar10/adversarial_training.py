@@ -113,6 +113,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
     parser.add_argument('--attack', default='pgd')
+    parser.add_argument('--sample', default=100, type=float)
     parser.add_argument('--list', default='newtonfool_pixelattack_spatialtransformation')
     parser.add_argument('--balanced', default=None) # "9_1_1"
     parser.add_argument('--l1', default=0, type=float)
@@ -338,7 +339,35 @@ def main():
         oversampled_train_data = np.tile(train_data, (len(attacks),1,1,1))
         oversampled_train_labels = np.tile(train_labels, (len(attacks)))
 
-        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels))) 
+        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels)))        
+    else :
+        train_data = np.array(train_set.data) / 255.
+        train_data = transpose(train_data).astype(np.float32)
+
+        train_labels = np.array(train_set.targets)
+        
+        train_set = list(zip(torch.from_numpy(train_data), torch.from_numpy(train_labels)))
+
+    test_data = np.array(test_set.data) / 255.
+    test_data = transpose(test_data).astype(np.float32)
+    test_labels = np.array(test_set.targets)
+
+    test_set = list(zip(torch.from_numpy(test_data), torch.from_numpy(test_labels)))
+
+    
+    if args.sample != 100 :
+        n = len(train_set) 
+        n_sample = int(n * args.sample / 100)
+        
+        train_set = list(zip(torch.from_numpy(train_data), torch.from_numpy(train_labels)))
+        np.random.shuffle(train_set)
+        train_set = train_set[:n_sample]
+
+    print("")
+    print("Train Original Data: ")
+    print("Len: ", len(train_set))
+    print("")
+        
 
     shuffle = False
         
@@ -464,16 +493,24 @@ def main():
     else :
         raise ValueError("Unknown adversarial data")
         
-    print("")
-    print("Train Adv Attack Data: ", args.attack)
-    print("Dataset shape: ", train_adv_images.shape)
-    print("Dataset type: ", type(train_adv_images))
-    print("Label shape: ", len(train_adv_labels))
-    print("")
+        
+
     
     train_adv_set = list(zip(train_adv_images,
         train_adv_labels))
     
+    if args.sample != 100 :
+        n = len(train_adv_set) 
+        n_sample = int(n * args.sample / 100)
+        
+        np.random.shuffle(train_set)
+        train_adv_set = train_adv_set[:n_sample]
+        
+    print("")
+    print("Train Adv Attack Data: ", args.attack)
+    print("Len: ", len(train_adv_set))
+    print("")
+
     train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=4)
     
     test_adv_set = list(zip(test_adv_images,
