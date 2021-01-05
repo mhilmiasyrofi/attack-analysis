@@ -81,6 +81,7 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--train-adversarial', default='autoattack', type=str)
+    parser.add_argument('--list', default='autoattack_pgd', type=str)
     parser.add_argument('--test-adversarial', default='autoattack', type=str)
     parser.add_argument('--model', default='ResNet18')
     parser.add_argument('--l2', default=0, type=float)
@@ -126,6 +127,12 @@ def main():
     fname = args.fname + "/" + args.train_adversarial + "/"
     if not os.path.exists(fname):
         os.makedirs(fname)
+        
+    if args.train_adversarial == "combine" :
+        fname += args.list + "/"
+        if not os.path.exists(fname):
+            os.makedirs(fname)
+
     
     eval_dir = fname + "eval/" + args.test_adversarial + "/"
     if not os.path.exists(eval_dir):
