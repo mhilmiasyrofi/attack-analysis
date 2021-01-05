@@ -264,11 +264,13 @@ def get_auto_fname(args):
 
 def main():
     args = get_args()
+    base_dir = 'trained_models/'
+#     base_dir = 'trained_models/backup_20epochs_50sample/'
     if args.fname == 'auto':
         names = get_auto_fname(args)
-        args.fname = 'trained_models/' + names
+        args.fname = base_dir + names
     else:
-        args.fname = 'trained_models/' + args.fname
+        args.fname = base_dir + args.fname
 
     if not os.path.exists(args.fname):
         os.makedirs(args.fname)
