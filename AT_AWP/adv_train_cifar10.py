@@ -144,9 +144,9 @@ def main():
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
-    shuffle = True
-    if args.attack == "all" :
-        shuffle = False
+    shuffle = False
+#     if args.attack == "all" :
+#         shuffle = False
     
     dataset = cifar10(args.data_dir)
     x_train = transpose(pad(dataset['train']['data'], 4)/255.)
@@ -164,6 +164,33 @@ def main():
             oversampled_train_labels = np.concatenate((oversampled_train_labels, train_labels))
 
         train_set = list(zip(oversampled_train_data, oversampled_train_labels))
+    if args.attack == "combine":
+        train_data = x_train
+        train_labels = np.array(y_train)
+
+        oversampled_train_data = train_data.copy()
+        oversampled_train_labels = train_labels.copy()
+                
+        print("Attacks")
+        attacks = args.list.split("_")
+        print(attacks)
+
+        N = len(attacks)
+        oversampled_train_data = np.tile(train_data, (N, 1,1,1))
+        oversampled_train_labels = np.tile(train_labels, (N))
+
+        train_set = list(zip(oversampled_train_data, oversampled_train_labels)) 
+
+    elif args.attack == "all" :
+        
+        train_data = x_train
+
+        train_labels = np.array(y_train)
+
+        oversampled_train_data = np.tile(train_data, (11, 1,1,1))
+        oversampled_train_labels = np.tile(train_labels, (11))
+        train_set = list(zip(oversampled_train_data, oversampled_train_labels)) 
+
     else :
         train_set = list(zip(x_train, y_train))    
 
@@ -224,6 +251,7 @@ def main():
                 train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
                 test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
                 test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
+                
     elif args.attack == "all" :
         print("Loading attacks")
         ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
@@ -460,31 +488,39 @@ def main():
         model.eval()
         test_loss = 0
         test_acc = 0
+        test_n = 0
+        
         test_robust_loss = 0
         test_robust_acc = 0
-        test_n = 0
-        for i, (batch, adv_batch) in enumerate(zip(test_batches, test_adv_batches)):
-            X, y = batch['input'], batch['target']
+        test_robust_n = 0
+        
+        for i, batch in enumerate(test_batches):
+            X, y = normalize(batch['input']), batch['target']
+            
+            output = model(X)
+            loss = criterion(output, y)
+
+            test_loss += loss.item() * y.size(0)
+            test_acc += (output.max(1)[1] == y).sum().item()
+            test_n += y.size(0)
+            
+        for i, adv_batch in enumerate(test_adv_batches):
             X_adv, y_adv = normalize(adv_batch["input"]), adv_batch["target"]
             
             robust_output = model(X_adv)
             robust_loss = criterion(robust_output, y_adv)
 
-            output = model(normalize(X))
-            loss = criterion(output, y)
-
             test_robust_loss += robust_loss.item() * y_adv.size(0)
             test_robust_acc += (robust_output.max(1)[1] == y_adv).sum().item()
-            test_loss += loss.item() * y.size(0)
-            test_acc += (output.max(1)[1] == y).sum().item()
-            test_n += y.size(0)
+            test_robust_n += y_adv.size(0)
+
 
         test_time = time.time()
 
 
         logger.info('%d \t %.3f \t\t %.3f \t\t\t %.3f \t\t %.3f',
             epoch, train_acc/train_n, train_robust_acc/train_n,
-            test_acc/test_n, test_robust_acc/test_n)
+            test_acc/test_n, test_robust_acc/test_robust_n)
 
         # save checkpoint
         if (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
@@ -495,8 +531,8 @@ def main():
         if test_robust_acc/test_n > best_test_robust_acc:
             torch.save({
                     'state_dict':model.state_dict(),
-                    'test_robust_acc':test_robust_acc/test_n,
-                    'test_robust_loss':test_robust_loss/test_n,
+                    'test_robust_acc':test_robust_acc/test_robust_n,
+                    'test_robust_loss':test_robust_loss/test_robust_n,
                     'test_loss':test_loss/test_n,
                     'test_acc':test_acc/test_n,
                 }, os.path.join(fname, f'model_best.pth'))
