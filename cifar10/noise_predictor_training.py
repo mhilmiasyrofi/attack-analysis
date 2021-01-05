@@ -10,6 +10,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+import torchvision
+from torchvision import datasets, transforms
+
+
+from sklearn.utils import resample
+
 import os
 
 from wideresnet import WideResNet
@@ -106,11 +112,9 @@ def CW_loss(x, y):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
-    parser.add_argument('--train-adversarial', default='autoattack')
-    parser.add_argument('--list', default='newtonfool_pixelattack_spatialtransformation')
+    parser.add_argument('--num_classes', default=3, type=int)
+    parser.add_argument('--list', default='autopgd_pixelattack_spatialtransformation')
     parser.add_argument('--balanced', default=None) # "9_1_1"
-    parser.add_argument('--test-adversarial', default='pgd')
-    parser.add_argument('--best-model', action='store_true')
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--data-dir', default='cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
@@ -118,7 +122,6 @@ def get_args():
     parser.add_argument('--lr-max', default=0.1, type=float)
     parser.add_argument('--lr-one-drop', default=0.01, type=float)
     parser.add_argument('--lr-drop-epoch', default=100, type=int)
-    parser.add_argument('--attack', default='pgd', type=str, choices=['pgd', 'fgsm', 'free', 'none'])
     parser.add_argument('--epsilon', default=8, type=int)
     parser.add_argument('--test_epsilon', default=8, type=int)
     parser.add_argument('--attack-iters', default=10, type=int)
@@ -148,7 +151,7 @@ def get_args():
     parser.add_argument('--warmup_lr', action='store_true') # whether warm_up lr from 0 to max_lr in the first n epochs
     parser.add_argument('--warmup_lr_epoch', default=15, type=int)
 
-    parser.add_argument('--weight_decay', default=5e-4, type=float)#weight decay
+    parser.add_argument('--weight-decay', default=5e-4, type=float)#weight decay
 
     parser.add_argument('--warmup_eps', action='store_true') # whether warm_up eps from 0 to 8/255 in the first n epochs
     parser.add_argument('--warmup_eps_epoch', default=15, type=int)
@@ -197,19 +200,16 @@ def get_args():
 
     return parser.parse_args()
 
+
 def get_auto_fname(args):
-#     names = args.model + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
-#     names = args.model + '_'  + args.train_adversarial + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
     
     names = None
     
-    if args.train_adversarial == "combine" :
-        if args.balanced != None :            
-            names = args.model + '_'  + args.train_adversarial + '_balanced_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
-        else :
-            names = args.model + '_'  + args.train_adversarial + '_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+    if args.balanced != None :            
+        names = args.model + '_'  + str(args.num_classes) + '_balanced_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
     else :
-        names = args.model + '_'  + args.train_adversarial + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)    
+        names = args.model + '_'  + str(args.num_classes) + '_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+
     
     # Group 1
     if args.earlystopPGD:
@@ -256,31 +256,23 @@ def get_auto_fname(args):
         names = names + '_mixup' + str(args.mixup_alpha)
     if args.cutout:
         names = names + '_cutout' + str(args.cutout_len)
-#     if args.train_adversarial != 'pgd':
-#         names = names + '_' + args.train_adversarial
 
     print('File name: ', names)
     return names
 
+def np_normalize(x, mean=cifar10_mean, std=cifar10_std):
+    return (x - mean)/std
+
 def main():
     args = get_args()
-    base_dir = 'trained_models/'
-#     base_dir = 'trained_models/backup_20epochs_50sample/'
     if args.fname == 'auto':
         names = get_auto_fname(args)
-        args.fname = base_dir + names
+        args.fname = 'noise_predictor/' + names
     else:
-        args.fname = base_dir + args.fname
+        args.fname = 'noise_predictor/' + args.fname
 
     if not os.path.exists(args.fname):
         os.makedirs(args.fname)
-        
-    eval_dir = args.fname + '/eval/' + args.test_adversarial + "/"
-
-    if not os.path.exists(eval_dir):
-        print("Make dirs: ", eval_dir)
-        os.makedirs(eval_dir)
-    
 
     logger = logging.getLogger(__name__)
     logging.basicConfig(
@@ -288,7 +280,7 @@ def main():
         datefmt='%Y/%m/%d %H:%M:%S',
         level=logging.DEBUG,
         handlers=[
-            logging.FileHandler(os.path.join(eval_dir, "output.log")),
+            logging.FileHandler(os.path.join(args.fname, 'eval.log' if args.eval else 'output.log')),
             logging.StreamHandler()
         ])
 
@@ -300,105 +292,72 @@ def main():
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
+    shuffle = True
 
-    # Prepare data
-    dataset = cifar10(args.data_dir)
-    
-    x_test = (dataset['test']['data']/255.)
-    x_test = transpose(x_test).astype(np.float32)
-    y_test = dataset['test']['labels']
-    
-    test_set = list(zip(x_test, y_test))
-    test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)
-    
-    print("Train Adv Attack Data: ", args.train_adversarial)
-    
-    adv_dir = "adv_examples/{}/".format(args.test_adversarial)
-    train_path = adv_dir + "train.pth" 
-    test_path = adv_dir + "test.pth"
-    
-    ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
-    
-    if args.test_adversarial in TOOLBOX_ADV_ATTACK_LIST :
+    train_adv_images = None
+    train_adv_labels = None
+    test_adv_images = None
+    test_adv_labels = None
+
+    print("Attacks")
+    attacks = args.list.split("_")
+    print(attacks)
+
+
+    for i in range(len(attacks)):
+        _adv_dir = "adv_examples/{}/".format(attacks[i])
+        train_path = _adv_dir + "train.pth" 
+        test_path = _adv_dir + "test.pth"
+
         adv_train_data = torch.load(train_path)
-        test_adv_images_on_train = adv_train_data["adv"]
-        test_adv_labels_on_train = adv_train_data["label"]
         adv_test_data = torch.load(test_path)
-        test_adv_images_on_test = adv_test_data["adv"]
-        test_adv_labels_on_test = adv_test_data["label"]
-    elif args.test_adversarial == "all":
-        for i in range(len(ATTACK_LIST)):
-            _adv_dir = "adv_examples/{}/".format(ATTACK_LIST[i])
-            train_path = _adv_dir + "train.pth" 
-            test_path = _adv_dir + "test.pth"
 
-            adv_train_data = torch.load(train_path)
-            adv_test_data = torch.load(test_path)
-            
-            if i == 0 :
-                train_adv_images = adv_train_data["adv"]
-                train_adv_labels = adv_train_data["label"]
-                test_adv_images = adv_test_data["adv"]
-                test_adv_labels = adv_test_data["label"]   
-            else :
-#                 print(train_adv_images.shape)
-#                 print(adv_train_data["adv"].shape)
-                train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
-                train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
-                test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
-                test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
-                
-            test_adv_images_on_train = train_adv_images
-            test_adv_labels_on_train = train_adv_labels
-            test_adv_images_on_test = test_adv_images
-            test_adv_labels_on_test = test_adv_labels
+        if i == 0 :
+            train_adv_images = adv_train_data["adv"]
+            test_adv_images = adv_test_data["adv"]
+            train_adv_labels = [i] * len(adv_train_data["label"])
+            test_adv_labels = [i] * len(adv_test_data["label"])
+        else :
+            train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
+            test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
+            train_adv_labels = np.concatenate((train_adv_labels, [i] * len(adv_train_data["label"])))
+            test_adv_labels = np.concatenate((test_adv_labels, [i] * len(adv_test_data["label"])))  
+    
+    train_adv_set = list(zip(train_adv_images,
+        train_adv_labels))
 
-    elif args.test_adversarial in ["ffgsm", "mifgsm", "tpgd"] :
-        adv_data = {}
-        adv_data["adv"], adv_data["label"] = torch.load(train_path)
-        test_adv_images_on_train = adv_data["adv"].numpy()
-        test_adv_labels_on_train = adv_data["label"].numpy()
-        adv_data = {}
-        adv_data["adv"], adv_data["label"] = torch.load(test_path)
-        test_adv_images_on_test = adv_data["adv"].numpy()
-        test_adv_labels_on_test = adv_data["label"].numpy()
-    else :
-        raise ValueError("Unknown adversarial data")
+    print("")
+    print("Train Adv Attack Data: ", attacks)
+    print("Len: ", len(train_adv_set))
+    print("")
+
+    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=4)
     
-    print("Test Adv Attack Data: ", args.test_adversarial)
-    
-    test_adv_on_train_set = list(zip(test_adv_images_on_train,
-        test_adv_labels_on_train))
-    
-    test_adv_on_train_batches = Batches(test_adv_on_train_set, args.batch_size, shuffle=False, set_random_choices=False, num_workers=4)
-    
-    test_adv_on_test_set = list(zip(test_adv_images_on_test,
-        test_adv_labels_on_test))
+    test_adv_set = list(zip(test_adv_images,
+        test_adv_labels))
         
-    test_adv_on_test_batches = Batches(test_adv_on_test_set, args.batch_size, shuffle=False, num_workers=4)
-
-
+    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=4)
+        
     # Set perturbations
     epsilon = (args.epsilon / 255.)
     test_epsilon = (args.test_epsilon / 255.)
     pgd_alpha = (args.pgd_alpha / 255.)
     test_pgd_alpha = (args.test_pgd_alpha / 255.)
 
-
     # Set models
     model = None
     if args.model == "resnet18" :
-        model = resnet18(pretrained=True)
+        model = resnet18(num_classes=args.num_classes)
     elif args.model == "resnet20" :
         model = resnet20()
     elif args.model == "vgg16bn" :
-        model = vgg16_bn(pretrained=True)
+        model = vgg16_bn(num_classes=args.num_classes)
     elif args.model == "densenet121" :
         model = densenet121(pretrained=True)
     elif args.model == "googlenet" :
         model = googlenet(pretrained=True)
     elif args.model == "inceptionv3" :
-        model = inception_v3(pretrained=True)
+        model = inception_v3(num_classes=3)
     elif args.model == 'WideResNet':
         model = WideResNet(34, 10, widen_factor=10, dropRate=0.0, normalize=args.use_FNandWN,
             activation=args.activation, softplus_beta=args.softplus_beta)
@@ -407,9 +366,6 @@ def main():
             activation=args.activation, softplus_beta=args.softplus_beta)
     else:
         raise ValueError("Unknown model")
-
-    model.cuda()
-    model.train()
 
     # Set training hyperparameters
     if args.l2:
@@ -445,18 +401,7 @@ def main():
     else:
         criterion = nn.CrossEntropyLoss()
 
-    # If we use freeAT or fastAT with previous init
-    if args.train_adversarial == 'free':
-        delta = torch.zeros(args.batch_size, 3, 32, 32).cuda()
-        delta.requires_grad = True
-    elif args.train_adversarial == 'fgsm' and args.fgsm_init == 'previous':
-        delta = torch.zeros(args.batch_size, 3, 32, 32).cuda()
-        delta.requires_grad = True
-
-    if args.train_adversarial == 'free':
-        epochs = int(math.ceil(args.epochs / args.train_adversarial_iters))
-    else:
-        epochs = args.epochs
+    epochs = args.epochs
 
 
     # Set lr schedule
@@ -517,8 +462,6 @@ def main():
             return min_lr + (max_lr - min_lr) * relative
 
 
-
-
     #### Set stronger adv attacks when decay the lr ####
     def eps_alpha_schedule(t, warm_up_eps = args.warmup_eps, if_use_stronger_adv=args.use_stronger_adv, stronger_index=args.stronger_index): # Schedule number 0
         if stronger_index == 0:
@@ -571,112 +514,125 @@ def main():
             best_val_robust_acc = torch.load(os.path.join(args.fname, f'model_val.pth'))['val_robust_acc']
     else:
         start_epoch = 0
-        
-    if args.best_model:
-        if args.train_adversarial == "original" :
-            logger.info(f'Run using the original model')
-        else :
-            logger.info(f'Run using the best model')
-            model.load_state_dict(torch.load(os.path.join(args.fname, f'model_best.pth'))["state_dict"])
 
     if args.eval:
+        if not args.resume:
+            logger.info("No model loaded to evaluate, specify with --resume FNAME")
+            return
         logger.info("[Evaluation mode]")
-
         
-    # Evaluate on test data
-    model.eval()
     
-    test_loss = 0
-    test_acc = 0
-    test_n = 0
-    y_original = np.array([])
-    y_original_pred = np.array([])
-
-    test_adv_test_loss = 0
-    test_adv_test_acc = 0
-    test_adv_test_n = 0
-    y_adv = np.array([])
-    y_adv_pred = np.array([])
-
-    test_adv_train_loss = 0
-    test_adv_train_acc = 0
-    test_adv_train_n = 0
-    
-
-
-    for i, batch in enumerate(test_batches):
-        X, y = batch['input'], batch['target']
-
-        clean_input = normalize(X)
-        output = model(clean_input)
-        loss = criterion(output, y)
-
-        test_loss += loss.item() * y.size(0)
-        test_acc += (output.max(1)[1] == y).sum().item()
-        test_n += y.size(0)
+    model.cuda()
         
-        y_original = np.append(y_original, y.cpu().numpy())
-        y_original_pred = np.append(y_original_pred, output.max(1)[1].cpu().numpy())
+    model.train()
+    
+    
+    logger.info('Epoch \t Train Robust Acc \t Test Robust Acc')
+    
+    
+    # Records per epoch for savetxt
+    train_loss_record = []
+    train_acc_record = []
+    train_robust_loss_record = []
+    train_robust_acc_record = []
+    train_grad_record = []
 
+    test_loss_record = []
+    test_acc_record = []
+    test_adv_loss_record = []
+    test_adv_acc_record = []
+    test_grad_record = []
 
-    for i, batch in enumerate(test_adv_on_test_batches):
-        adv_input = normalize(batch['input'])
-        y = batch['target']
+    for epoch in range(start_epoch, epochs):
+        model.train()
+        start_time = time.time()
 
-        cross_robust_output = model(adv_input)
-        cross_robust_loss = criterion(cross_robust_output, y)
+        train_robust_loss = 0
+        train_robust_acc = 0
+        train_n = 0
+        train_grad = 0
 
-        test_adv_test_loss += cross_robust_loss.item() * y.size(0)
-        test_adv_test_acc += (cross_robust_output.max(1)[1] == y).sum().item()
-        test_adv_test_n += y.size(0)
+        record_iter = torch.tensor([])
 
-        y_adv = np.append(y_adv, y.cpu().numpy())
-        y_adv_pred = np.append(y_adv_pred, cross_robust_output.max(1)[1].cpu().numpy())
+        for i, adv_batch in enumerate(train_adv_batches):
+            if args.eval:
+                break
+            adv_input = normalize(adv_batch['input'])
+            adv_y = adv_batch['target']
+            adv_input.requires_grad = True
+            robust_output = model(adv_input)
 
+            robust_loss = criterion(robust_output, adv_y)
+
+            if args.l1:
+                for name,param in model.named_parameters():
+                    if 'bn' not in name and 'bias' not in name:
+                        robust_loss += args.l1*param.abs().sum()
+
+            opt.zero_grad()
+            robust_loss.backward()
+            opt.step()
+
+            # Record the statstic values
+            train_robust_loss += robust_loss.item() * adv_y.size(0)
+            train_robust_acc += (robust_output.max(1)[1] == adv_y).sum().item()
+            train_n += adv_y.size(0)
+
+        train_time = time.time()
+        if args.earlystopPGD:
+            print('Iter mean: ', record_iter.mean().item(), ' Iter std:  ', record_iter.std().item())
+
+        # Evaluate on test data
+        model.eval()
         
-    for i, batch in enumerate(test_adv_on_train_batches):
-        adv_input = normalize(batch['input'])
-        y = batch['target']
+        test_adv_loss = 0
+        test_adv_acc = 0
+        test_adv_n = 0
+        
 
-        cross_robust_output = model(adv_input)
-        cross_robust_loss = criterion(cross_robust_output, y)
+        for i, batch in enumerate(test_adv_batches):                            
+            adv_input = normalize(batch['input'])
+            y = batch['target']
 
-        test_adv_train_loss += cross_robust_loss.item() * y.size(0)
-        test_adv_train_acc += (cross_robust_output.max(1)[1] == y).sum().item()
-        test_adv_train_n += y.size(0)
+            robust_output = model(adv_input)
+            robust_loss = criterion(robust_output, y)
 
-    test_time = time.time()
+            test_adv_loss += robust_loss.item() * y.size(0)
+            test_adv_acc += (robust_output.max(1)[1] == y).sum().item()
+            test_adv_n += y.size(0)
 
-    logger.info("Test Acc \tTest Robust Acc on Test \tTest Robust Acc on Train")
-    logger.info('%.4f \t\t %.4f \t\t %.4f', 
-                test_acc/test_n,
-                test_adv_test_acc/test_adv_test_n,
-                test_adv_train_acc/test_adv_train_n)
+        test_time = time.time()
 
-    
-    y_original = y_original.astype(np.int)
-    y_original_pred = y_original_pred.astype(np.int)
 
-    y_adv = y_adv.astype(np.int)
-    y_adv_pred = y_adv_pred.astype(np.int)
-    
-    logger.info("Y_original")
-    logger.info(y_original)
-    np.savetxt(os.path.join(eval_dir, "Y_original.txt"), y_original,  fmt='%i')
-    
-    logger.info("Y_original_pred")
-    logger.info(y_original_pred)
-    np.savetxt(os.path.join(eval_dir, "Y_original_pred.txt"), y_original_pred, fmt='%i')
-    
-    logger.info("Y_adv")
-    logger.info(y_adv)
-    np.savetxt(os.path.join(eval_dir, "Y_adv.txt"), y_adv, fmt='%i')
-    
-    
-    logger.info("Y_adv_pred")
-    logger.info(y_adv_pred)
-    np.savetxt(os.path.join(eval_dir, "Y_adv_pred.txt"), y_adv_pred, fmt='%i')
-    
-    
+        logger.info('%d \t %.4f \t\t %.4f',
+            epoch+1, train_robust_acc/train_n, test_adv_acc/test_adv_n)
+
+        # Save results
+        train_robust_loss_record.append(train_robust_loss/train_n)
+        train_robust_acc_record.append(train_robust_acc/train_n)
+
+        np.savetxt(args.fname+'/train_robust_loss_record.txt', np.array(train_robust_loss_record))
+        np.savetxt(args.fname+'/train_robust_acc_record.txt', np.array(train_robust_acc_record))
+
+        test_adv_loss_record.append(test_adv_loss/train_n)
+        test_adv_acc_record.append(test_adv_acc/train_n)
+
+        np.savetxt(args.fname+'/test_adv_loss_record.txt', np.array(test_adv_loss_record))
+        np.savetxt(args.fname+'/test_adv_acc_record.txt', np.array(test_adv_acc_record))
+
+        # save checkpoint
+        if epoch > 99 or (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
+            torch.save(model.state_dict(), os.path.join(args.fname, f'model_{epoch}.pth'))
+            torch.save(opt.state_dict(), os.path.join(args.fname, f'opt_{epoch}.pth'))
+
+        # save best
+        if test_adv_acc/test_adv_n > best_test_adv_acc:
+            torch.save({
+                    'state_dict':model.state_dict(),
+                    'test_adv_acc':test_adv_acc/test_adv_n,
+                    'test_adv_loss':test_adv_loss/test_adv_n,
+                }, os.path.join(args.fname, f'model_best.pth'))
+            best_test_adv_acc = test_adv_acc/test_adv_n
+
 if __name__ == "__main__":
     main()
