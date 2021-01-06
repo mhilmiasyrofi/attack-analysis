@@ -113,7 +113,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
     parser.add_argument('--num_classes', default=3, type=int)
-    parser.add_argument('--list', default='autopgd_pixelattack_spatialtransformation')
+    parser.add_argument('--list', default='pixelattack_spatialtransformation_autopgd')
     parser.add_argument('--balanced', default=None) # "9_1_1"
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--data-dir', default='cifar-data', type=str)
@@ -322,6 +322,8 @@ def main():
             test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
             train_adv_labels = np.concatenate((train_adv_labels, [i] * len(adv_train_data["label"])))
             test_adv_labels = np.concatenate((test_adv_labels, [i] * len(adv_test_data["label"])))  
+    
+#     print(test)
     
     train_adv_set = list(zip(train_adv_images,
         train_adv_labels))
