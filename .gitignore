@@ -122,4 +122,6 @@ AT_AWP/models/
 AT_AWP/trained_models/
 AT_AWP/results/
 AT_AWP/plot/
+AT_AWP/noise_predictors/
+AT_AWP/ensemble_models/
 data/
