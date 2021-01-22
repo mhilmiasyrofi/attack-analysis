@@ -113,7 +113,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
     parser.add_argument('--attack', default='pgd')
-    parser.add_argument('--sample', default=100, type=float)
+    parser.add_argument('--sample', default=100, type=int)
     parser.add_argument('--list', default='newtonfool_pixelattack_spatialtransformation')
     parser.add_argument('--balanced', default=None) # "9_1_1"
     parser.add_argument('--l1', default=0, type=float)
@@ -206,62 +206,67 @@ def get_auto_fname(args):
     
     names = None
     
-    if args.attack == "combine" :
-        if args.balanced != None :            
-            names = args.model + '_'  + args.attack + '_balanced_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
-        else :
-            names = args.model + '_'  + args.attack + '_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+#     if args.attack == "combine" :
+#         if args.balanced != None :            
+#             names = args.model + '_'  + args.attack + '_balanced_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+#         else :
+#             names = args.model + '_'  + args.attack + '_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+#     else :
+#         names = args.model + '_'  + args.attack + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+    if args.sample != 100 :
+        names = str(args.sample) + "/" + args.attack + "/"
     else :
-        names = args.model + '_'  + args.attack + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)            
+        names = "default/" + args.attack + "/"
+        
 
     
-    # Group 1
-    if args.earlystopPGD:
-        names = names + '_earlystopPGD' + str(args.earlystopPGDepoch1) + str(args.earlystopPGDepoch2)
-    if args.warmup_lr:
-        names = names + '_warmuplr' + str(args.warmup_lr_epoch)
-    if args.warmup_eps:
-        names = names + '_warmupeps' + str(args.warmup_eps_epoch)
-    if args.weight_decay != 5e-4:
-        names = names + '_wd' + str(args.weight_decay)
-    if args.labelsmooth:
-        names = names + '_ls' + str(args.labelsmoothvalue)
+#     # Group 1
+#     if args.earlystopPGD:
+#         names = names + '_earlystopPGD' + str(args.earlystopPGDepoch1) + str(args.earlystopPGDepoch2)
+#     if args.warmup_lr:
+#         names = names + '_warmuplr' + str(args.warmup_lr_epoch)
+#     if args.warmup_eps:
+#         names = names + '_warmupeps' + str(args.warmup_eps_epoch)
+#     if args.weight_decay != 5e-4:
+#         names = names + '_wd' + str(args.weight_decay)
+#     if args.labelsmooth:
+#         names = names + '_ls' + str(args.labelsmoothvalue)
 
-    # Group 2
-    if args.use_stronger_adv:
-        names = names + '_usestrongeradv#' + str(args.stronger_index)
-    if args.use_multitarget:
-        names = names + '_usemultitarget'
-    if args.use_DLRloss:
-        names = names + '_useDLRloss'
-    if args.use_CWloss:
-        names = names + '_useCWloss'
-    if args.use_FNandWN:
-        names = names + '_HE' + 's' + str(args.s_FN) + 'm' + str(args.m_FN)
-    if args.use_adaptive:
-        names = names + 'adaptive'
-    if args.use_FNonly:
-        names = names + '_FNonly'
-    if args.fast_better:
-        names = names + '_fastbetter'
-    if args.activation != 'ReLU':
-        names = names + '_' + args.activation
-        if args.activation == 'Softplus':
-            names = names + str(args.softplus_beta)
-    if args.lrdecay != 'base':
-        names = names + '_' + args.lrdecay
-    if args.BNeval:
-        names = names + '_BNeval'
-    if args.focalloss:
-        names = names + '_focalloss' + str(args.focallosslambda)
-    if args.optimizer != 'momentum':
-        names = names + '_' + args.optimizer
-    if args.mixup:
-        names = names + '_mixup' + str(args.mixup_alpha)
-    if args.cutout:
-        names = names + '_cutout' + str(args.cutout_len)
-#     if args.attack != 'pgd':
-#         names = names + '_' + args.attack
+#     # Group 2
+#     if args.use_stronger_adv:
+#         names = names + '_usestrongeradv#' + str(args.stronger_index)
+#     if args.use_multitarget:
+#         names = names + '_usemultitarget'
+#     if args.use_DLRloss:
+#         names = names + '_useDLRloss'
+#     if args.use_CWloss:
+#         names = names + '_useCWloss'
+#     if args.use_FNandWN:
+#         names = names + '_HE' + 's' + str(args.s_FN) + 'm' + str(args.m_FN)
+#     if args.use_adaptive:
+#         names = names + 'adaptive'
+#     if args.use_FNonly:
+#         names = names + '_FNonly'
+#     if args.fast_better:
+#         names = names + '_fastbetter'
+#     if args.activation != 'ReLU':
+#         names = names + '_' + args.activation
+#         if args.activation == 'Softplus':
+#             names = names + str(args.softplus_beta)
+#     if args.lrdecay != 'base':
+#         names = names + '_' + args.lrdecay
+#     if args.BNeval:
+#         names = names + '_BNeval'
+#     if args.focalloss:
+#         names = names + '_focalloss' + str(args.focallosslambda)
+#     if args.optimizer != 'momentum':
+#         names = names + '_' + args.optimizer
+#     if args.mixup:
+#         names = names + '_mixup' + str(args.mixup_alpha)
+#     if args.cutout:
+#         names = names + '_cutout' + str(args.cutout_len)
+# #     if args.attack != 'pgd':
+# #         names = names + '_' + args.attack
 
     print('File name: ', names)
     return names
@@ -273,9 +278,9 @@ def main():
     args = get_args()
     if args.fname == 'auto':
         names = get_auto_fname(args)
-        args.fname = 'trained_models/' + names
+        args.fname = '../../trained_models/' + names
     else:
-        args.fname = 'trained_models/' + args.fname
+        args.fname = '../../trained_models/' + args.fname
 
     if not os.path.exists(args.fname):
         os.makedirs(args.fname)
@@ -359,7 +364,6 @@ def main():
         n = len(train_set) 
         n_sample = int(n * args.sample / 100)
         
-        train_set = list(zip(torch.from_numpy(train_data), torch.from_numpy(train_labels)))
         np.random.shuffle(train_set)
         train_set = train_set[:n_sample]
 
@@ -504,7 +508,7 @@ def main():
         n = len(train_adv_set) 
         n_sample = int(n * args.sample / 100)
         
-        np.random.shuffle(train_set)
+        np.random.shuffle(train_adv_set)
         train_adv_set = train_adv_set[:n_sample]
         
     print("")
