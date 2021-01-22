@@ -128,5 +128,6 @@ cifar10/adv_examples_0.3/
 cifar10/plot/
 cifar10/csv/
 cifar10/noise_predictor/
+cifar10/noise_predictors/
 cifar10/ensemble_models/
 data/
