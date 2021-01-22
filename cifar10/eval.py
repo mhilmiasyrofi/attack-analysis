@@ -111,6 +111,8 @@ def get_args():
     parser.add_argument('--balanced', default=None) # "9_1_1"
     parser.add_argument('--test-adversarial', default='pgd')
     parser.add_argument('--best-model', action='store_true')
+    parser.add_argument('--model-epoch', default=-1, type=int)
+    parser.add_argument('--sample', default=100, type=int)
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--data-dir', default='cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
@@ -128,7 +130,8 @@ def get_args():
     parser.add_argument('--fgsm-alpha', default=1.25, type=float)
     parser.add_argument('--norm', default='l_inf', type=str, choices=['l_inf', 'l_2'])
     parser.add_argument('--fgsm-init', default='random', choices=['zero', 'random', 'previous'])
-    parser.add_argument('--fname', default='cifar_model', type=str)
+#     parser.add_argument('--fname', default='cifar_model', type=str)
+    parser.add_argument('--fname', default='../../trained_models/', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--half', action='store_true')
     parser.add_argument('--width-factor', default=10, type=int)
@@ -203,74 +206,73 @@ def get_auto_fname(args):
     
     names = None
     
-    if args.train_adversarial == "combine" :
-        if args.balanced != None :            
-            names = args.model + '_'  + args.train_adversarial + '_balanced_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
-        else :
-            names = args.model + '_'  + args.train_adversarial + '_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+    if args.sample != 100 :
+        names = str(args.sample) + "/" + args.train_adversarial + "/"
     else :
-        names = args.model + '_'  + args.train_adversarial + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)    
-    
-    # Group 1
-    if args.earlystopPGD:
-        names = names + '_earlystopPGD' + str(args.earlystopPGDepoch1) + str(args.earlystopPGDepoch2)
-    if args.warmup_lr:
-        names = names + '_warmuplr' + str(args.warmup_lr_epoch)
-    if args.warmup_eps:
-        names = names + '_warmupeps' + str(args.warmup_eps_epoch)
-    if args.weight_decay != 5e-4:
-        names = names + '_wd' + str(args.weight_decay)
-    if args.labelsmooth:
-        names = names + '_ls' + str(args.labelsmoothvalue)
+        names = "default/" + args.train_adversarial + "/"
 
-    # Group 2
-    if args.use_stronger_adv:
-        names = names + '_usestrongeradv#' + str(args.stronger_index)
-    if args.use_multitarget:
-        names = names + '_usemultitarget'
-    if args.use_DLRloss:
-        names = names + '_useDLRloss'
-    if args.use_CWloss:
-        names = names + '_useCWloss'
-    if args.use_FNandWN:
-        names = names + '_HE' + 's' + str(args.s_FN) + 'm' + str(args.m_FN)
-    if args.use_adaptive:
-        names = names + 'adaptive'
-    if args.use_FNonly:
-        names = names + '_FNonly'
-    if args.fast_better:
-        names = names + '_fastbetter'
-    if args.activation != 'ReLU':
-        names = names + '_' + args.activation
-        if args.activation == 'Softplus':
-            names = names + str(args.softplus_beta)
-    if args.lrdecay != 'base':
-        names = names + '_' + args.lrdecay
-    if args.BNeval:
-        names = names + '_BNeval'
-    if args.focalloss:
-        names = names + '_focalloss' + str(args.focallosslambda)
-    if args.optimizer != 'momentum':
-        names = names + '_' + args.optimizer
-    if args.mixup:
-        names = names + '_mixup' + str(args.mixup_alpha)
-    if args.cutout:
-        names = names + '_cutout' + str(args.cutout_len)
-#     if args.train_adversarial != 'pgd':
-#         names = names + '_' + args.train_adversarial
+    
+#     if args.train_adversarial == "combine" :
+#         if args.balanced != None :            
+#             names = args.model + '_'  + args.train_adversarial + '_balanced_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+#         else :
+#             names = args.model + '_'  + args.train_adversarial + '_' + args.list + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
+#     else :
+#         names = args.model + '_'  + args.train_adversarial + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)    
+    
+#     # Group 1
+#     if args.earlystopPGD:
+#         names = names + '_earlystopPGD' + str(args.earlystopPGDepoch1) + str(args.earlystopPGDepoch2)
+#     if args.warmup_lr:
+#         names = names + '_warmuplr' + str(args.warmup_lr_epoch)
+#     if args.warmup_eps:
+#         names = names + '_warmupeps' + str(args.warmup_eps_epoch)
+#     if args.weight_decay != 5e-4:
+#         names = names + '_wd' + str(args.weight_decay)
+#     if args.labelsmooth:
+#         names = names + '_ls' + str(args.labelsmoothvalue)
+
+#     # Group 2
+#     if args.use_stronger_adv:
+#         names = names + '_usestrongeradv#' + str(args.stronger_index)
+#     if args.use_multitarget:
+#         names = names + '_usemultitarget'
+#     if args.use_DLRloss:
+#         names = names + '_useDLRloss'
+#     if args.use_CWloss:
+#         names = names + '_useCWloss'
+#     if args.use_FNandWN:
+#         names = names + '_HE' + 's' + str(args.s_FN) + 'm' + str(args.m_FN)
+#     if args.use_adaptive:
+#         names = names + 'adaptive'
+#     if args.use_FNonly:
+#         names = names + '_FNonly'
+#     if args.fast_better:
+#         names = names + '_fastbetter'
+#     if args.activation != 'ReLU':
+#         names = names + '_' + args.activation
+#         if args.activation == 'Softplus':
+#             names = names + str(args.softplus_beta)
+#     if args.lrdecay != 'base':
+#         names = names + '_' + args.lrdecay
+#     if args.BNeval:
+#         names = names + '_BNeval'
+#     if args.focalloss:
+#         names = names + '_focalloss' + str(args.focallosslambda)
+#     if args.optimizer != 'momentum':
+#         names = names + '_' + args.optimizer
+#     if args.mixup:
+#         names = names + '_mixup' + str(args.mixup_alpha)
+#     if args.cutout:
+#         names = names + '_cutout' + str(args.cutout_len)
 
     print('File name: ', names)
     return names
 
 def main():
     args = get_args()
-    base_dir = 'trained_models/'
-#     base_dir = 'trained_models/backup_20epochs_50sample/'
-    if args.fname == 'auto':
-        names = get_auto_fname(args)
-        args.fname = base_dir + names
-    else:
-        args.fname = base_dir + args.fname
+    names = get_auto_fname(args)
+    args.fname = args.fname + names
 
     if not os.path.exists(args.fname):
         os.makedirs(args.fname)
@@ -572,12 +574,14 @@ def main():
     else:
         start_epoch = 0
         
-    if args.best_model:
+    if args.model_epoch == -1:
         if args.train_adversarial == "original" :
             logger.info(f'Run using the original model')
         else :
             logger.info(f'Run using the best model')
             model.load_state_dict(torch.load(os.path.join(args.fname, f'model_best.pth'))["state_dict"])
+    else :
+        model.load_state_dict(torch.load(os.path.join(args.fname, 'model_' + str(args.model_epoch) + '.pth')))
 
     if args.eval:
         logger.info("[Evaluation mode]")
