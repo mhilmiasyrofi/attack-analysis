@@ -214,7 +214,7 @@ def get_auto_fname(args):
 #     else :
 #         names = args.model + '_'  + args.attack + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
     if args.sample != 100 :
-        names = str(args.sample) + "/" + args.attack + "/"
+        names = str(args.sample) + "sample/" + args.attack + "/"
     else :
         names = "default/" + args.attack + "/"
         
