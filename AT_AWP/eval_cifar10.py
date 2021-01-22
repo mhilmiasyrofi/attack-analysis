@@ -84,6 +84,7 @@ def get_args():
     parser.add_argument('--list', default='autoattack_pgd', type=str)
     parser.add_argument('--test-adversarial', default='autoattack', type=str)
     parser.add_argument('--model', default='ResNet18')
+    parser.add_argument('--model-epoch', default=-1, type=int)
     parser.add_argument('--l2', default=0, type=float)
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--batch-size', default=128, type=int)
@@ -102,7 +103,7 @@ def get_args():
     parser.add_argument('--fgsm-alpha', default=1.25, type=float)
     parser.add_argument('--norm', default='l_inf', type=str, choices=['l_inf', 'l_2'])
     parser.add_argument('--fgsm-init', default='random', choices=['zero', 'random', 'previous'])
-    parser.add_argument('--fname', default='trained_models', type=str)
+    parser.add_argument('--fname', default='../../trained_models/default/', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--half', action='store_true')
     parser.add_argument('--width-factor', default=10, type=int)
@@ -124,7 +125,7 @@ def main():
     if args.awp_gamma <= 0.0:
         args.awp_warmup = np.infty
     
-    fname = args.fname + "/" + args.train_adversarial + "/"
+    fname = args.fname + args.train_adversarial + "/"
     if not os.path.exists(fname):
         os.makedirs(fname)
         
@@ -134,7 +135,12 @@ def main():
             os.makedirs(fname)
 
     
-    eval_dir = fname + "eval/" + args.test_adversarial + "/"
+    eval_dir = fname + "eval/"
+    if args.model_epoch != -1 :
+        eval_dir += str(args.model_epoch) + "/"
+    else :
+        eval_dir += "best/"
+    eval_dir += args.test_adversarial + "/"
     if not os.path.exists(eval_dir):
 #         print("Make dirs: ", eval_dir)s
         os.makedirs(eval_dir)
@@ -212,6 +218,9 @@ def main():
     
     if args.train_adversarial == "original" :
         logger.info(f'Run using the original model')
+    elif args.model_epoch != -1 :
+        logger.info('Run using the model checkpoint from epoch-' + str(args.model_epoch))
+        model.load_state_dict(torch.load(os.path.join(fname, 'model_' + str(args.model_epoch) + '.pth')))
     else :
         logger.info(f'Run using the best model')
         model.load_state_dict(torch.load(os.path.join(fname, f'model_best.pth'))["state_dict"])
