@@ -38,8 +38,7 @@ for ep in ${epochs[@]}; do
                 --train-adversarial $tr \
                 --test-adversarial $ts \
                 --model-epoch $ep \
-                --sample 100 \
-                --fname ../../trained_models/ \
+                --fname ../../trained_models/default/ \
                 --lr-schedule piecewise \
                 --norm l_inf \
                 --epsilon 8 \
@@ -59,8 +58,7 @@ done
 #     --train-adversarial autoattack \
 #     --test-adversarial autopgd \
 #     --model-epoch 0 \
-#     --sample 100 \
-#     --fname ../../trained_models/ \
+#     --fname ../../trained_models/25sample/ \
 #     --lr-schedule piecewise \
 #     --norm l_inf \
 #     --epsilon 8 \

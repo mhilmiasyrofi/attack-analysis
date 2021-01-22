@@ -112,7 +112,6 @@ def get_args():
     parser.add_argument('--test-adversarial', default='pgd')
     parser.add_argument('--best-model', action='store_true')
     parser.add_argument('--model-epoch', default=-1, type=int)
-    parser.add_argument('--sample', default=100, type=int)
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--data-dir', default='cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
@@ -131,7 +130,7 @@ def get_args():
     parser.add_argument('--norm', default='l_inf', type=str, choices=['l_inf', 'l_2'])
     parser.add_argument('--fgsm-init', default='random', choices=['zero', 'random', 'previous'])
 #     parser.add_argument('--fname', default='cifar_model', type=str)
-    parser.add_argument('--fname', default='../../trained_models/', type=str)
+    parser.add_argument('--fname', default='../../trained_models/default/', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--half', action='store_true')
     parser.add_argument('--width-factor', default=10, type=int)
@@ -206,10 +205,10 @@ def get_auto_fname(args):
     
     names = None
     
-    if args.sample != 100 :
-        names = str(args.sample) + "/" + args.train_adversarial + "/"
-    else :
-        names = "default/" + args.train_adversarial + "/"
+#     if args.sample != 100 :
+#         names = str(args.sample) + "/" + args.train_adversarial + "/"
+#     else :
+#         names = "default/" + args.train_adversarial + "/"
 
     
 #     if args.train_adversarial == "combine" :
@@ -271,14 +270,24 @@ def get_auto_fname(args):
 
 def main():
     args = get_args()
-    names = get_auto_fname(args)
-    args.fname = args.fname + names
+#     names = get_auto_fname(args)
+#     args.fname = args.fname + names
+
+    args.fname += args.train_adversarial + "/"
 
     if not os.path.exists(args.fname):
         os.makedirs(args.fname)
         
-    eval_dir = args.fname + '/eval/' + args.test_adversarial + "/"
+#     eval_dir = args.fname + '/eval/' + args.test_adversarial + "/"
 
+    eval_dir = args.fname + "eval/"
+    if args.model_epoch != -1 :
+        eval_dir += str(args.model_epoch) + "/"
+    else :
+        eval_dir += "best/"
+    eval_dir += args.test_adversarial + "/"
+
+    
     if not os.path.exists(eval_dir):
         print("Make dirs: ", eval_dir)
         os.makedirs(eval_dir)
