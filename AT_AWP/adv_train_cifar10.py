@@ -11,7 +11,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 import torchvision
-# from torchvision import datasets, transforms
+from torchvision import datasets, transforms
 
 
 import os
@@ -82,9 +82,10 @@ def get_args():
     parser.add_argument('--model', default='ResNet18')
     parser.add_argument('--attack', default='autoattack', type=str)
     parser.add_argument('--list', default='autoattack', type=str)
+    parser.add_argument('--sample', default=100, type=int)
     parser.add_argument('--l2', default=0, type=float)
     parser.add_argument('--l1', default=0, type=float)
-    parser.add_argument('--batch-size', default=256, type=int)
+    parser.add_argument('--batch-size', default=128, type=int)
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
     parser.add_argument('--lr-schedule', default='piecewise', choices=['superconverge', 'piecewise', 'linear', 'piecewisesmoothed', 'piecewisezoom', 'onedrop', 'multipledecay', 'cosine', 'cyclic'])
@@ -99,7 +100,7 @@ def get_args():
     parser.add_argument('--fgsm-alpha', default=1.25, type=float)
     parser.add_argument('--norm', default='l_inf', type=str, choices=['l_inf', 'l_2'])
     parser.add_argument('--fgsm-init', default='random', choices=['zero', 'random', 'previous'])
-    parser.add_argument('--fname', default='trained_models', type=str)
+    parser.add_argument('--output-dir', default='../../trained_models', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--half', action='store_true')
     parser.add_argument('--width-factor', default=10, type=int)
@@ -120,8 +121,12 @@ def main():
     args = get_args()
     if args.awp_gamma <= 0.0:
         args.awp_warmup = np.infty
-            
-    fname = args.fname + "/" + args.attack + "/"
+    fname = None
+    if args.sample == 100 :
+        fname = args.output_dir + "/default/" + args.attack + "/"
+    else :
+        fname = args.output_dir + "/" + str(args.sample) + "sample/" + args.attack + "/"
+
     if args.attack  == "combine" :
          fname += args.list + "/"
         
@@ -145,60 +150,74 @@ def main():
     torch.cuda.manual_seed(args.seed)
 
     shuffle = False
-#     if args.attack == "all" :
-#         shuffle = False
-    
-    dataset = cifar10(args.data_dir)
-    x_train = transpose(pad(dataset['train']['data'], 4)/255.)
-    y_train = dataset['train']['labels']
 
-    if args.attack == "all" :        
-        train_data = np.array(x_train)
-        train_labels = np.array(y_train)
+    # setup data loader
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+    ])
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+    ])
+    train_set = torchvision.datasets.CIFAR10(root='../data', train=True, download=True, transform=transform_train)
+    test_set = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform_test)
 
-        oversampled_train_data = train_data.copy()
-        oversampled_train_labels = train_labels.copy()
+    if args.attack == "all" :
+        train_data = np.array(train_set.data) / 255.
+        train_data = transpose(train_data).astype(np.float32)
 
-        for i in range(10) :
-            oversampled_train_data = np.concatenate((oversampled_train_data, train_data))
-            oversampled_train_labels = np.concatenate((oversampled_train_labels, train_labels))
-
-        train_set = list(zip(oversampled_train_data, oversampled_train_labels))
-    if args.attack == "combine":
-        train_data = x_train
-        train_labels = np.array(y_train)
-
-        oversampled_train_data = train_data.copy()
-        oversampled_train_labels = train_labels.copy()
-                
-        print("Attacks")
-        attacks = args.list.split("_")
-        print(attacks)
-
-        N = len(attacks)
-        oversampled_train_data = np.tile(train_data, (N, 1,1,1))
-        oversampled_train_labels = np.tile(train_labels, (N))
-
-        train_set = list(zip(oversampled_train_data, oversampled_train_labels)) 
-
-    elif args.attack == "all" :
+        train_labels = np.array(train_set.targets)
         
-        train_data = x_train
-
-        train_labels = np.array(y_train)
-
-        oversampled_train_data = np.tile(train_data, (11, 1,1,1))
+        oversampled_train_data = np.tile(train_data, (11,1,1,1))
         oversampled_train_labels = np.tile(train_labels, (11))
-        train_set = list(zip(oversampled_train_data, oversampled_train_labels)) 
 
-    else :
-        train_set = list(zip(x_train, y_train))    
+        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels)))
 
-    transforms = [Crop(32, 32), FlipLR()]
-    train_set_x = Transform(train_set, transforms)
-    train_batches = Batches(train_set_x, args.batch_size, shuffle=shuffle, set_random_choices=True, num_workers=2)
+
+    elif args.attack == "combine" :
+        train_data = np.array(train_set.data) / 255.
+        train_data = transpose(train_data).astype(np.float32)
+
+        train_labels = np.array(train_set.targets)
+
+        oversampled_train_data = train_data.copy()
+        oversampled_train_labels = train_labels.copy()
+
+        logger.info("Attacks")
+        attacks = args.list.split("_")
+        logger.info(attacks)
         
-    test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
+        oversampled_train_data = np.tile(train_data, (len(attacks),1,1,1))
+        oversampled_train_labels = np.tile(train_labels, (len(attacks)))
+
+        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels)))        
+    else :
+        train_data = np.array(train_set.data) / 255.
+        train_data = transpose(train_data).astype(np.float32)
+
+        train_labels = np.array(train_set.targets)
+        
+        train_set = list(zip(torch.from_numpy(train_data), torch.from_numpy(train_labels)))
+
+    test_data = np.array(test_set.data) / 255.
+    test_data = transpose(test_data).astype(np.float32)
+    test_labels = np.array(test_set.targets)
+
+    test_set = list(zip(torch.from_numpy(test_data), torch.from_numpy(test_labels)))
+
+    
+    if args.sample != 100 :
+        n = len(train_set) 
+        n_sample = int(n * args.sample / 100)
+        
+        np.random.shuffle(train_set)
+        train_set = train_set[:n_sample]
+
+
+    train_batches = Batches(train_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=2)
+    
+
     test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=0)
 
     
@@ -287,10 +306,19 @@ def main():
     train_adv_set = list(zip(train_adv_images,
         train_adv_labels))
     
+    
+    if args.sample != 100 :
+        n = len(train_adv_set) 
+        n_sample = int(n * args.sample / 100)
+        
+        np.random.shuffle(train_adv_set)
+        train_adv_set = train_adv_set[:n_sample]
+    
     train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=0)
         
     test_adv_set = list(zip(test_adv_images,
         test_adv_labels))
+    
         
     test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=0)
     
@@ -380,7 +408,7 @@ def main():
         if os.path.exists(os.path.join(fname, f'model_best.pth')):
             best_test_robust_acc = torch.load(os.path.join(fname, f'model_best.pth'))['test_robust_acc']
         if args.val:
-            best_val_robust_acc = torch.load(os.path.join(args.fname, f'model_val.pth'))['val_robust_acc']
+            best_val_robust_acc = torch.load(os.path.join(args.output_dir, f'model_val.pth'))['val_robust_acc']
     else:
         start_epoch = 0
 
