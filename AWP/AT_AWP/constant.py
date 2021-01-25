@@ -1,0 +1,1 @@
+TOOLBOX_ADV_ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "elasticnet", "fgsm", "jsma", "newtonfool", "pixelattack", "pgd", "spatialtransformation", "squareattack"]
