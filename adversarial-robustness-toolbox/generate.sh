@@ -1,20 +1,14 @@
 #!/bin/bash
  
-
+## Old Version
 # declare -a attack=("autoattack" "apgd" "boundaryattack" "brendelbethge" "cw" "deepfool" "elasticnet" "fgm" "hopskipjump" "bim" "pgd" "pixelattack" "thresholdattack" "jsma" "spatialtransformation" "squareattack" "universalperturbation" "wasserstein" "zoo")
 
-# declare -a attack=("boundaryattack" "brendelbethge" "cw")
+declare -a attack=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
 
-
-# declare -a attack=("autoattack" "autopgd" "squareattack")
-
-# declare -a attack=("bim" "cw")
-
-# declare -a attack=( "cw" "bim" "jsma" "elasticnet" "universalperturbation")
-
-# declare -a attack=("jsma" "deepfool" "newtonfool" "spatialtransformation")
-
-declare -a attack=("pixelattack" "elasticnet" "universalperturbation")
+# declare -a attack=("autoattack" "autopgd" "bim")
+# declare -a attack=("cw" "deepfool" "fgsm")
+# declare -a attack=("newtonfool" "pgd" "pixelattack")
+# declare -a attack=("spatialtransformation" "squareattack")
 
 
 # Iterate the string array using for loop
