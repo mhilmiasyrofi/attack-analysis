@@ -94,7 +94,7 @@ def get_args():
     parser.add_argument('--fgsm-alpha', default=1.25, type=float)
     parser.add_argument('--norm', default='l_inf', type=str, choices=['l_inf', 'l_2'])
     parser.add_argument('--fgsm-init', default='random', choices=['zero', 'random', 'previous'])
-    parser.add_argument('--fname', default='trained_models/', type=str)
+    parser.add_argument('--fname', default='../trained_models/', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--half', action='store_true')
     parser.add_argument('--width-factor', default=10, type=int)
@@ -112,7 +112,11 @@ def get_args():
 def main():
     args = get_args()
     
-    dirname = args.fname + args.attack + "/"
+    dirname = args.fname
+    if args.sample == 100 :
+        dirname += "default/" + args.attack + "/"
+    else :
+        dirname += str(args.sample) + "/" + args.attack + "/"
 
     if not os.path.exists(dirname):
         os.makedirs(dirname)
@@ -194,7 +198,6 @@ def main():
         n = len(train_set) 
         n_sample = int(n * args.sample / 100)
         
-        train_set = list(zip(torch.from_numpy(train_data), torch.from_numpy(train_labels)))
         np.random.shuffle(train_set)
         train_set = train_set[:n_sample]
 
@@ -339,7 +342,7 @@ def main():
         n = len(train_adv_set) 
         n_sample = int(n * args.sample / 100)
         
-        np.random.shuffle(train_set)
+        np.random.shuffle(train_adv_set)
         train_adv_set = train_adv_set[:n_sample]
         
     print("")
