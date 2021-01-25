@@ -2,7 +2,11 @@
 
 # declare -a attack=("autoattack" "autopgd" "bim")
 
-declare -a attack=("cw" "deepfool" "fgsm")
+# declare -a attack=("cw" "deepfool" "fgsm")
+
+# declare -a attack=("newtonfool" "pgd" "pixelattack" )
+
+declare -a attack=("spatialtransformation" "squareattack")
 
 # declare -a attack=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
 

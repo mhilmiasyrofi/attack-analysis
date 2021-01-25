@@ -97,10 +97,10 @@ if __name__ == "__main__" :
     train_path =  "{}train.pth".format(dirname)
     test_path = "{}test.pth".format(dirname)
     
-#     if os.path.exists(train_path):
-#         print("Adversarial examples already exist at {}".format(train_path))
-#         print("Please remove it to generate the new one!")
-#         sys.exit()
+    if os.path.exists(train_path):
+        print("Adversarial examples already exist at {}".format(train_path))
+        print("Please remove it to generate the new one!")
+        sys.exit()
     
 
     # Set seed
