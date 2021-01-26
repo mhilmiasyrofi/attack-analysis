@@ -26,6 +26,7 @@ In this project, we use 11 adversarial attacks presented in the table below
 "autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack"
 
 |Name|Type|
+|---|---|
 |AutoAttack|White-box|
 |AutoPGD|White-box|
 |BIM|White-box|
