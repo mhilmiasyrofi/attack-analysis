@@ -9,9 +9,6 @@ This project is tested under the following environment settings:
 - Python: 3.7
 - PyTorch: 1.5.1
 - Torchvision: 0.6.0
-- Scikit-Learn
-- Pandas
-- Seaborn
 
 Docker: pytorch/pytorch:1.5.1-cuda10.1-cudnn7-devel
 
@@ -24,7 +21,7 @@ Docker: pytorch/pytorch:1.5.1-cuda10.1-cudnn7-devel
 #### Docker Preparation
 
 ```
-docker run -it --rm --name gpu0-at -v <path to the folder>/attack-analysis/:/workspace/Bag-of-Tricks-for-AT/ --gpus '"device=0"' pytorch/pytorch:1.5.1-cuda10.1-cudnn7-devel
+docker run -it --rm --name gpu0-at -v <path to the folder>/attack-analysis/:/workspace/attack-analysis/ --gpus '"device=0"' pytorch/pytorch:1.5.1-cuda10.1-cudnn7-devel
 
 pip install -r requirements.txt
 ```
