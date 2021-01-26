@@ -1,5 +1,5 @@
 # Bag of Tricks for Adversarial Training
-A part of code for adversarial training originated from [Bag of Tricks for Adversarial Training](https://arxiv.org/abs/2010.00467) 
+Adversarial training codes originated from [Bag of Tricks for Adversarial Training](https://github.com/P2333/Bag-of-Tricks-for-AT) 
 
 
 *Go to `cifar10` folder*
