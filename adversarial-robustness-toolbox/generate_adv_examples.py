@@ -28,6 +28,7 @@ from art.attacks.evasion import *
 from art.estimators.classification import PyTorchClassifier
 from art.utils import load_dataset
 
+## import the root project to the python environment
 sys.path.insert(0,'/workspace/attack-analysis')
 from models import *
 

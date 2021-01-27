@@ -1,10 +1,6 @@
 # Bag of Tricks for Adversarial Training
 Adversarial training codes originated from [Bag of Tricks for Adversarial Training](https://github.com/P2333/Bag-of-Tricks-for-AT) 
 
-
-*Go to `cifar10` folder*
-
-
 ## RQ1
 
 Running command for adversarial training
