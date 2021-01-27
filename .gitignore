@@ -119,3 +119,6 @@ demo/pics/*
 cifar-data/
 adv_examples/
 models/
+data/
+trained_models/
+*.pth
