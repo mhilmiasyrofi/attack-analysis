@@ -116,3 +116,6 @@ demo/pics/*
 #!notebooks/art_evaluations/*.ipynb
 
 *.ipynb
+cifar-data/
+adv_examples/
+models/
