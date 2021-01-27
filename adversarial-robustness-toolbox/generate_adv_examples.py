@@ -28,7 +28,7 @@ from art.attacks.evasion import *
 from art.estimators.classification import PyTorchClassifier
 from art.utils import load_dataset
 
-
+sys.path.insert(0,'/workspace/attack-analysis')
 from models import *
 
 
@@ -76,6 +76,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
+    parser.add_argument('--output-dir', default='../adv_examples/', type=str)
     parser.add_argument('--lr-max', default=0.1, type=float)
     parser.add_argument('--attack', default='autoattack', type=str)
     parser.add_argument('--epsilon', default=8, type=int)
@@ -90,7 +91,7 @@ if __name__ == "__main__" :
 
     args = get_args()
     
-    dirname = "adv_examples/" + args.attack + "/"
+    dirname = args.output_dir + args.attack + "/"
     if not os.path.exists(dirname):
         os.makedirs(dirname)
     
