@@ -15,7 +15,7 @@ Docker: pytorch/pytorch:1.5.1-cuda10.1-cudnn7-devel
 ### Some Useful Techs
 
 #### Maintaining the Session in Server
-[Why Should you use tmux](https://medium.com/@brindelle/why-should-you-learn-tmux-7a55cfb5668f). *TLDR*: Instead of keeping track of many windows yourself, you can use tmux to create, organize, and navigate between them. Even more importantly, tmux lets you detach from and re-attach sessions, so that you can leave your terminal sessions running in the background and resume them later.
+[Why should you use tmux?](https://medium.com/@brindelle/why-should-you-learn-tmux-7a55cfb5668f). *TLDR*: Instead of keeping track of many windows yourself, you can use tmux to create, organize, and navigate between them. Even more importantly, tmux lets you detach from and re-attach sessions, so that you can leave your terminal sessions running in the background and resume them later.
 
 
 #### Docker Preparation
