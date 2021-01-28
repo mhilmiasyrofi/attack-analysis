@@ -7,18 +7,18 @@ Running command for adversarial training
 ```
 bash train-rq1.sh
 ```
-This script will generate trained models that is saved at `<fpath>`
+This script will generate trained models that is saved at `../trained_models/BagofTricks/1000val/full/`
 
 Run evaluation using the trained models
 ```
 bash eval-rq1.sh
 ```
-This script will .... generate log on `<fpath>`
+This script will run evaluation on adversarial test-set then generate log on `../trained_models/BagofTricks/1000val/full/<train>/eval/best/<test>/`
 
-Clustering analysis: `clustering-analysis-rq1.ipynb`
+Then perform clustering on `clustering-analysis-rq1.ipynb`
 
 
-## RQ2
+## RQ3
 
 Best performing model analysis: `best-performing-model-analysis.ipynb`
 
