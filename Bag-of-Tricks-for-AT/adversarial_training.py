@@ -118,7 +118,7 @@ def get_args():
     parser.add_argument('--attack', default='pgd')
     parser.add_argument('--sample', default=100, type=int)
     parser.add_argument('--epochs', default=110, type=int)
-    parser.add_argument('--val', action='store_true') # whether use DLRloss
+    parser.add_argument('--val', default=-1, type=int)
     parser.add_argument('--adv-dir', default='../adv_examples/', type=str)
     parser.add_argument('--output-dir', default='../trained_models/BagOfTricks/', type=str)
     parser.add_argument('--l1', default=0, type=float)
@@ -207,12 +207,17 @@ def get_args():
 
 def get_auto_fname(args):
     
-    names = None
+    names = ""
+    
+    if args.val != -1 :
+        names += str(args.val) + "val/"
+    else :
+        name += "default/"
     
     if args.sample != 100 :
-        names = str(args.sample) + "sample/" + args.attack + "/"
+        names += str(args.sample) + "sample/" + args.attack + "/"
     else :
-        names = "default/" + args.attack + "/"
+        names += "full/" + args.attack + "/"
 
     print('File name: ', names)
     return names
@@ -255,13 +260,28 @@ def main():
 
     # setup data loader
     transformations = [Crop(32, 32), FlipLR()]
-    if args.val:
-        try:
-            dataset = torch.load("cifar10_validation_split.pth")
-        except:
-            print("Couldn't find a dataset with a validation split, did you run "
-                  "generate_validation.py?")
-            return
+    if args.val != -1:
+        np.random.seed(0)
+        m = 50000
+        P = np.random.permutation(m)
+        n = args.val
+        
+        dataset = cifar10(args.data_dir)
+
+        val_data = dataset['train']['data'][P[:n]]
+        val_labels = [dataset['train']['labels'][p] for p in P[:n]]
+        train_data = dataset['train']['data'][P[n:]]
+        train_labels = [dataset['train']['labels'][p] for p in P[n:]]
+
+        dataset['train']['data'] = train_data
+        dataset['train']['labels'] = train_labels
+        dataset['val'] = {
+            'data' : val_data, 
+            'labels' : val_labels
+        }
+        dataset['split'] = n
+        dataset['permutation'] = P
+        
         val_set = list(zip(transpose(dataset['val']['data']/255.), dataset['val']['labels']))
         val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)
     else:
@@ -281,7 +301,11 @@ def main():
     train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=4)
 
     test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
-    test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)  
+    if args.val != -1:
+        test_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)  
+    else :
+        test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)  
+    
         
 
     print("")
@@ -312,7 +336,7 @@ def main():
         adv_train_data = torch.load(train_path)
         train_adv_images = adv_train_data["adv"]
         train_adv_labels = adv_train_data["label"]
-        if args.val :
+        if args.val != -1:
             permutation = dataset['permutation']
             split = dataset['split']
             val_adv_images = train_adv_images[permutation[:split]]
@@ -336,7 +360,7 @@ def main():
                 train_adv_labels = adv_train_data["label"]
                 test_adv_images = adv_test_data["adv"]
                 test_adv_labels = adv_test_data["label"] 
-                if args.val :
+                if args.val != -1:
                     permutation = dataset['permutation']
                     split = dataset['split']
                     val_adv_images = train_adv_images[permutation[:split]]
@@ -348,7 +372,7 @@ def main():
                 test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
                 test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
                 
-                if args.val :
+                if args.val != -1:
                     permutation = dataset['permutation']
                     split = dataset['split']
                     val_adv_images = np.concatenate((val_adv_images, adv_train_data["adv"][permutation[:split]]))
@@ -384,7 +408,7 @@ def main():
     train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=4)
     
     
-    if args.val :
+    if args.val != -1:
         test_adv_set = list(zip(val_adv_images, val_adv_labels))
     else :
         test_adv_set = list(zip(test_adv_images,
@@ -576,8 +600,6 @@ def main():
         logger.info(f'Resuming at epoch {start_epoch}')
 
         best_test_adv_acc = torch.load(os.path.join(output_dir, f'model_best.pth'))['test_adv_acc']
-        if args.val:
-            best_val_robust_acc = torch.load(os.path.join(output_dir, f'model_val.pth'))['val_robust_acc']
     else:
         start_epoch = 0
 
