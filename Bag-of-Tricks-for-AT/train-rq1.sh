@@ -3,7 +3,7 @@
 ## docker run -it --rm --name gpu0-bot -v /home/mhilmiasyrofi/Documents/Bag-of-Tricks-for-AT/:/workspace/Bag-of-Tricks-for-AT/ --gpus '"device=0"' mhilmiasyrofi/advtraining
  
 ## Declare an array of string with type
-# declare -a adv=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
+declare -a adv=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
 
 ## Used to run in different GPUs
 # declare -a adv=("autoattack" "autopgd" "bim")
@@ -12,7 +12,7 @@
 # declare -a adv=("spatialtransformation" "squareattack")
 
 # declare -a adv=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm")
-declare -a adv=("newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
+# declare -a adv=("newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
 
 
 ## Iterate the string array using for loop
@@ -29,7 +29,7 @@ for a in ${adv[@]}; do
         --weight_decay 5e-4 \
         --batch-size 128 \
         --BNeval \
-        --val
+        --val 1000
 done
 
 # python adversarial_training.py --model resnet18 \
