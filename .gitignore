@@ -110,12 +110,13 @@ demo/pics/*
 .idea/
 
 # Exceptions for notebooks/
-#!notebooks/*.ipynb
+!Bag-of-Tricks-for-AT/*.ipynb
+!AWP/*.ipynb
+!robust_overfitting/*.ipynb
 #!notebooks/adaptive_defence_evaluations/*.ipynb
 #!notebooks/adversarial_patch/*.ipynb
 #!notebooks/art_evaluations/*.ipynb
 
-*.ipynb
 cifar-data/
 adv_examples/
 models/
