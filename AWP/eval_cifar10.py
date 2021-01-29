@@ -134,7 +134,7 @@ def main():
         os.makedirs(fname)
     
     if args.val != -1 :
-        eval_dir = fname + "val" + str(args.val) + "/"
+        eval_dir = fname + "val/" + str(args.val) + "/"
     else :
         eval_dir = fname + "eval/"
     
@@ -148,13 +148,6 @@ def main():
     if not os.path.exists(eval_dir):
         print("Make dirs: ", eval_dir)
         os.makedirs(eval_dir)
-    
-    print("")
-    print("Train Adv Attack Data: ", args.train_adversarial)
-    print("Test Adv Attack Data: ", args.test_adversarial)
-    print("")
-
-    
 
     logger = logging.getLogger(__name__)
     logging.basicConfig(
@@ -197,7 +190,7 @@ def main():
         dataset['permutation'] = P
         
         val_set = list(zip(transpose(dataset['val']['data']/255.), dataset['val']['labels']))
-        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)
+        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=1)
     else:
         dataset = cifar10(args.data_dir)
     train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
@@ -212,13 +205,13 @@ def main():
         np.random.shuffle(train_set)
         train_set = train_set[:n_sample]
 
-    train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=4)
+    train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=1)
 
     test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
     if args.val != -1:
-        test_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)  
+        test_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=1)  
     else :
-        test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)      
+        test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=1)      
 
     print("Train Adv Attack Data: ", args.train_adversarial)
     
@@ -299,7 +292,7 @@ def main():
     else :
         test_adv_set = list(zip(test_adv_images, test_adv_labels))
     
-    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=4)
+    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=1)
     
     model = resnet18(pretrained=True)
     model = nn.DataParallel(model).cuda()
@@ -350,19 +343,19 @@ def main():
     Y_adv_pred = Y_adv_pred.astype(np.int)    
 
     print("Y_original")
-    print(Y_original)
+    print(Y_original[:10])
     np.savetxt(os.path.join(eval_dir, "Y_original.txt"), Y_original,  fmt='%i')
 
     print("Y_original_pred")
-    print(Y_original_pred)
+    print(Y_original_pred[:10])
     np.savetxt(os.path.join(eval_dir, "Y_original_pred.txt"), Y_original_pred, fmt='%i')
 
     print("Y_adv")
-    print(Y_adv)
+    print(Y_adv[:10])
     np.savetxt(os.path.join(eval_dir, "Y_adv.txt"), Y_adv, fmt='%i')
 
     print("Y_adv_pred")
-    print(Y_adv_pred)
+    print(Y_adv_pred[:10])
     np.savetxt(os.path.join(eval_dir, "Y_adv_pred.txt"), Y_adv_pred, fmt='%i')
 
 
