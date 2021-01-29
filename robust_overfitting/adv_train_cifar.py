@@ -147,7 +147,7 @@ def main():
     # setup data loader
     transformations = [Crop(32, 32), FlipLR()]
     if args.val != -1:
-        np.random.seed(0)
+        np.random.seed(args.seed)
         m = 50000
         P = np.random.permutation(m)
         n = args.val
@@ -169,11 +169,11 @@ def main():
         dataset['permutation'] = P
         
         val_set = list(zip(transpose(dataset['val']['data']/255.), dataset['val']['labels']))
-        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)
+        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=1)
     else:
         dataset = cifar10(args.data_dir)
-    train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
-        dataset['train']['labels']))
+    
+    train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.), dataset['train']['labels']))
     
     
     train_set = Transform(train_set, transformations)
@@ -184,13 +184,13 @@ def main():
         np.random.shuffle(train_set)
         train_set = train_set[:n_sample]
 
-    train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=4)
+    train_batches = Batches(train_set, args.batch_size, shuffle=False, set_random_choices=True, num_workers=1)
 
     test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
     if args.val != -1:
-        test_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)  
+        test_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=1)  
     else :
-        test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)  
+        test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=1)  
     
         
 
@@ -290,7 +290,7 @@ def main():
     print("Len: ", len(train_adv_set))
     print("")
 
-    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=4)
+    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=1)
     
     
     if args.val != -1:
@@ -299,19 +299,13 @@ def main():
         test_adv_set = list(zip(test_adv_images,
             test_adv_labels))
         
-    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=4)
+    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=1)
 
 
 
     epsilon = (args.epsilon / 255.)
     pgd_alpha = (args.pgd_alpha / 255.)
 
-#     if args.model == 'PreActResNet18':
-#         model = PreActResNet18()
-#     elif args.model == 'WideResNet':
-#         model = WideResNet(34, 10, widen_factor=args.width_factor, dropRate=0.0)
-#     else:
-#         raise ValueError("Unknown model")
     model = resnet18(pretrained=True)
 
 
@@ -379,7 +373,6 @@ def main():
         model.load_state_dict(torch.load(os.path.join(dirname, f'model_{start_epoch-1}.pth')))
         opt.load_state_dict(torch.load(os.path.join(dirname, f'opt_{start_epoch-1}.pth')))
         logger.info(f'Resuming at epoch {start_epoch}')
-
         best_test_robust_acc = torch.load(os.path.join(dirname, f'model_best.pth'))['test_robust_acc']
     else:
         start_epoch = 0
@@ -420,7 +413,8 @@ def main():
     
     logger.info('Intial Accuracy on Adversarial Test Data: %.4f (Test Robust Acc)', test_adv_acc/test_adv_n)
 
-    logger.info('Epoch \t Train Time \t Test Time \t LR \t \t Train Loss \t Train Acc \t Train Robust Loss \t Train Robust Acc \t Test Loss \t Test Acc \t Test Robust Loss \t Test Robust Acc')
+    logger.info('Epoch \t Train Acc \t Train Robust Acc \t Test Acc \t Test Robust Acc')
+    
     for epoch in range(start_epoch, epochs):
         model.train()
         start_time = time.time()
@@ -448,7 +442,7 @@ def main():
             if args.mixup:
                 robust_loss = mixup_criterion(criterion, robust_output, y_a, y_b, lam)
             else:
-                robust_loss = criterion(robust_output, y)
+                robust_loss = criterion(robust_output, y_adv)
 
             if args.l1:
                 for name,param in model.named_parameters():
@@ -511,11 +505,10 @@ def main():
         test_time = time.time()
 
 
-        logger.info('%d \t %.1f \t \t %.1f \t \t %.4f \t %.4f \t %.4f \t %.4f \t \t %.4f \t \t %.4f \t %.4f \t %.4f \t \t %.4f',
-            epoch, train_time - start_time, test_time - train_time, lr,
-            train_loss/train_n, train_acc/train_n, train_robust_loss/train_n, train_robust_acc/train_n,
-            test_loss/test_n, test_acc/test_n, test_robust_loss/test_robust_n, test_robust_acc/test_robust_n)
-
+        logger.info('%d \t %.3f \t\t %.3f \t\t\t %.3f \t\t %.3f',
+            epoch, train_acc/train_n, train_robust_acc/train_n,
+            test_acc/test_n, test_robust_acc/test_robust_n)
+                                                        
         # save checkpoint
         if (epoch+1) % args.chkpt_iters == 0 or epoch+1 == epochs:
             torch.save(model.state_dict(), os.path.join(dirname, f'model_{epoch}.pth'))

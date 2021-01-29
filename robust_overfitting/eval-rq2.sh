@@ -9,14 +9,14 @@ declare -a test=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool
 
 
 ## Iterate the string array using for loop
-for tr in ${train[@]}; do
-    for ts in ${test[@]}; do
-        python eval.py \
-            --train-adversarial $tr \
-            --test-adversarial $ts \
-            --model-dir ../trained_models/AT/1000val/full/
-    done
-done
+# for tr in ${train[@]}; do
+#     for ts in ${test[@]}; do
+#         python eval.py \
+#             --train-adversarial $tr \
+#             --test-adversarial $ts \
+#             --model-dir ../trained_models/AT/1000val/full/
+#     done
+# done
 
 for tr in ${train[@]}; do
     for ts in ${test[@]}; do
@@ -29,8 +29,8 @@ for tr in ${train[@]}; do
 done
 
 # python eval.py \
-#     --train-adversarial autoattack \
-#     --test-adversarial pgd \
+#     --train-adversarial autopgd \
+#     --test-adversarial fgsm \
 #     --model-dir ../trained_models/AT/1000val/full/
 
 
