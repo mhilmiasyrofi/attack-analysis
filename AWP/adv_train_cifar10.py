@@ -160,7 +160,7 @@ def main():
     # setup data loader
     transformations = [Crop(32, 32), FlipLR()]
     if args.val != -1:
-        np.random.seed(0)
+        np.random.seed(args.seed)
         m = 50000
         P = np.random.permutation(m)
         n = args.val
