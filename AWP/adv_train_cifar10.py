@@ -182,7 +182,7 @@ def main():
         dataset['permutation'] = P
         
         val_set = list(zip(transpose(dataset['val']['data']/255.), dataset['val']['labels']))
-        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)
+        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=1)
     else:
         dataset = cifar10(args.data_dir)
     train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
@@ -197,13 +197,13 @@ def main():
         np.random.shuffle(train_set)
         train_set = train_set[:n_sample]
 
-    train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=4)
+    train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=1)
 
     test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
     if args.val != -1:
-        test_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)  
+        test_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=1)  
     else :
-        test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)  
+        test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=1)  
     
     print("")
     print("Train Original Data: ")
@@ -302,7 +302,7 @@ def main():
     print("Len: ", len(train_adv_set))
     print("")
 
-    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=4)
+    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=1)
     
     
     if args.val != -1:
@@ -311,7 +311,7 @@ def main():
         test_adv_set = list(zip(test_adv_images,
             test_adv_labels))
         
-    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=4)    
+    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=1)    
     epsilon = (args.epsilon / 255.)
     pgd_alpha = (args.pgd_alpha / 255.)
 
@@ -442,6 +442,7 @@ def main():
     model.train()
 
     logger.info('Epoch \t Train Acc \t Train Robust Acc \t Test Acc \t Test Robust Acc')
+
     for epoch in range(start_epoch, epochs):
         start_time = time.time()
         train_loss = 0
