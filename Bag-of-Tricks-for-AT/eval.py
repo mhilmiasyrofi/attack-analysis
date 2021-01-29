@@ -115,11 +115,10 @@ def get_args():
     parser.add_argument('--test-adversarial', default='pgd')
     parser.add_argument('--val', default=-1, type=int)
     parser.add_argument('--sample', default=100, type=int)
-    parser.add_argument('--best-model', action='store_true')
-    parser.add_argument('--model-epoch', default=-1, type=int)
-    parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--data-dir', default='../cifar-data', type=str)
     parser.add_argument('--adv-dir', default='../adv_examples/', type=str)
+    parser.add_argument('--model-epoch', default=-1, type=int)
+    parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--epochs', default=110, type=int)
     parser.add_argument('--lr-schedule', default='piecewise', choices=['superconverge', 'piecewise', 'linear', 'piecewisesmoothed', 'piecewisezoom', 'onedrop', 'multipledecay', 'cosine', 'cyclic'])
     parser.add_argument('--lr-max', default=0.1, type=float)
@@ -213,14 +212,17 @@ def main():
         os.makedirs(args.model_dir)
         
 
-    eval_dir = args.model_dir + "eval/"
+
     if args.val != -1 :
         eval_dir = args.model_dir + "val/" + str(args.val) +  "/"
+    else :
+        eval_dir = args.model_dir + "eval/"        
         
     if args.model_epoch != -1 :
         eval_dir += str(args.model_epoch) + "/"
     else :
         eval_dir += "best/"
+        
     eval_dir += args.test_adversarial + "/"
 
     
