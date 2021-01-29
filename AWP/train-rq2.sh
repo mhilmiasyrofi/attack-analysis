@@ -1,6 +1,6 @@
 # declare -a adv=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
 
-# declare -a adv=("autoattack" "autopgd" "bims" "cw" "deepfool" "fgsm")
+# declare -a adv=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm")
 declare -a adv=("newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
 
 # Iterate the string array using for loop
@@ -14,7 +14,7 @@ done
 
 
 # python adv_train_cifar10.py \
-#         --attack newtonfool \
+#         --attack bim \
 #         --batch-size 128 \
 #         --epochs 110 \
 #         --val 1000
