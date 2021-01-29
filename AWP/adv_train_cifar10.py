@@ -21,6 +21,8 @@ from preactresnet import PreActResNet18
 from utils import *
 from utils_awp import AdvWeightPerturb
 
+## import the root project to the python environment
+sys.path.insert(0,'/workspace/attack-analysis')
 from models import *
 from constant import TOOLBOX_ADV_ATTACK_LIST
 
@@ -81,7 +83,8 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='ResNet18')
     parser.add_argument('--attack', default='autoattack', type=str)
-    parser.add_argument('--list', default='autoattack', type=str)
+    parser.add_argument('--val', default=-1, type=int)
+    parser.add_argument('--adv-dir', default='../adv_examples/', type=str)
     parser.add_argument('--sample', default=100, type=int)
     parser.add_argument('--l2', default=0, type=float)
     parser.add_argument('--l1', default=0, type=float)
@@ -100,7 +103,7 @@ def get_args():
     parser.add_argument('--fgsm-alpha', default=1.25, type=float)
     parser.add_argument('--norm', default='l_inf', type=str, choices=['l_inf', 'l_2'])
     parser.add_argument('--fgsm-init', default='random', choices=['zero', 'random', 'previous'])
-    parser.add_argument('--output-dir', default='../../trained_models', type=str)
+    parser.add_argument('--output-dir', default='../trained_models/AWP/', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--half', action='store_true')
     parser.add_argument('--width-factor', default=10, type=int)
@@ -110,7 +113,6 @@ def get_args():
     parser.add_argument('--mixup', action='store_true')
     parser.add_argument('--mixup-alpha', type=float)
     parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--val', action='store_true')
     parser.add_argument('--chkpt-iters', default=10, type=int)
     parser.add_argument('--awp-gamma', default=0.01, type=float)
     parser.add_argument('--awp-warmup', default=0, type=int)
@@ -121,15 +123,19 @@ def main():
     args = get_args()
     if args.awp_gamma <= 0.0:
         args.awp_warmup = np.infty
-    fname = None
-    if args.sample == 100 :
-        fname = args.output_dir + "/default/" + args.attack + "/"
+    
+    fname = args.output_dir + "/"
+    
+    if args.val != -1 :
+        fname += str(args.val) + "val/"
     else :
-        fname = args.output_dir + "/" + str(args.sample) + "sample/" + args.attack + "/"
+        fname += "default/"
+    
+    if args.sample == 100 :
+        fname += "full/" + args.attack + "/"
+    else :
+        fname += str(args.sample) + "sample/" + args.attack + "/"
 
-    if args.attack  == "combine" :
-         fname += args.list + "/"
-        
     if not os.path.exists(fname):
         os.makedirs(fname)
 
@@ -152,61 +158,38 @@ def main():
     shuffle = False
 
     # setup data loader
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-    ])
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-    ])
-    train_set = torchvision.datasets.CIFAR10(root='../data', train=True, download=True, transform=transform_train)
-    test_set = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform_test)
-
-    if args.attack == "all" :
-        train_data = np.array(train_set.data) / 255.
-        train_data = transpose(train_data).astype(np.float32)
-
-        train_labels = np.array(train_set.targets)
+    transformations = [Crop(32, 32), FlipLR()]
+    if args.val != -1:
+        np.random.seed(0)
+        m = 50000
+        P = np.random.permutation(m)
+        n = args.val
         
-        oversampled_train_data = np.tile(train_data, (11,1,1,1))
-        oversampled_train_labels = np.tile(train_labels, (11))
+        dataset = cifar10(args.data_dir)
 
-        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels)))
+        val_data = dataset['train']['data'][P[:n]]
+        val_labels = [dataset['train']['labels'][p] for p in P[:n]]
+        train_data = dataset['train']['data'][P[n:]]
+        train_labels = [dataset['train']['labels'][p] for p in P[n:]]
 
-
-    elif args.attack == "combine" :
-        train_data = np.array(train_set.data) / 255.
-        train_data = transpose(train_data).astype(np.float32)
-
-        train_labels = np.array(train_set.targets)
-
-        oversampled_train_data = train_data.copy()
-        oversampled_train_labels = train_labels.copy()
-
-        logger.info("Attacks")
-        attacks = args.list.split("_")
-        logger.info(attacks)
+        dataset['train']['data'] = train_data
+        dataset['train']['labels'] = train_labels
+        dataset['val'] = {
+            'data' : val_data, 
+            'labels' : val_labels
+        }
+        dataset['split'] = n
+        dataset['permutation'] = P
         
-        oversampled_train_data = np.tile(train_data, (len(attacks),1,1,1))
-        oversampled_train_labels = np.tile(train_labels, (len(attacks)))
-
-        train_set = list(zip(torch.from_numpy(oversampled_train_data), torch.from_numpy(oversampled_train_labels)))        
-    else :
-        train_data = np.array(train_set.data) / 255.
-        train_data = transpose(train_data).astype(np.float32)
-
-        train_labels = np.array(train_set.targets)
-        
-        train_set = list(zip(torch.from_numpy(train_data), torch.from_numpy(train_labels)))
-
-    test_data = np.array(test_set.data) / 255.
-    test_data = transpose(test_data).astype(np.float32)
-    test_labels = np.array(test_set.targets)
-
-    test_set = list(zip(torch.from_numpy(test_data), torch.from_numpy(test_labels)))
-
+        val_set = list(zip(transpose(dataset['val']['data']/255.), dataset['val']['labels']))
+        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)
+    else:
+        dataset = cifar10(args.data_dir)
+    train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
+        dataset['train']['labels']))
     
+    
+    train_set = Transform(train_set, transformations)
     if args.sample != 100 :
         n = len(train_set) 
         n_sample = int(n * args.sample / 100)
@@ -214,98 +197,98 @@ def main():
         np.random.shuffle(train_set)
         train_set = train_set[:n_sample]
 
+    train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=4)
 
-    train_batches = Batches(train_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=2)
+    test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
+    if args.val != -1:
+        test_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)  
+    else :
+        test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)  
     
-
-    test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=0)
-
-    
+    print("")
+    print("Train Original Data: ")
+    print("Len: ", len(train_set))
+    print("")
+        
+    shuffle = False
+        
     train_adv_images = None
     train_adv_labels = None
+
+    val_adv_images = None
+    val_adv_labels = None
+    
     test_adv_images = None
     test_adv_labels = None
 
-    adv_dir = "adv_examples/{}/".format(args.attack)
+    adv_dir = args.adv_dir + "{}/".format(args.attack)
     train_path = adv_dir + "train.pth" 
     test_path = adv_dir + "test.pth"
     
+#     ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
+    ATTACK_LIST = ["pixelattack", "spatialtransformation", "squareattack", "fgsm", "deepfool", "bim", "cw", "pgd", "autoattack", "autopgd", "newtonfool"]
+    
 
-    if args.attack in TOOLBOX_ADV_ATTACK_LIST :
+    if args.attack in ATTACK_LIST :
         adv_train_data = torch.load(train_path)
         train_adv_images = adv_train_data["adv"]
         train_adv_labels = adv_train_data["label"]
+        if args.val != -1:
+            permutation = dataset['permutation']
+            split = dataset['split']
+            val_adv_images = train_adv_images[permutation[:split]]
+            train_adv_images = train_adv_images[permutation[split:]]
+            val_adv_labels = [train_adv_labels[p] for p in permutation[:split]]
+            train_adv_labels = [train_adv_labels[p] for p in permutation[split:]]
         adv_test_data = torch.load(test_path)
         test_adv_images = adv_test_data["adv"]
         test_adv_labels = adv_test_data["label"]        
-    elif args.attack in ["ffgsm", "mifgsm", "tpgd"] :
-        adv_data = {}
-        adv_data["adv"], adv_data["label"] = torch.load(train_path)
-        train_adv_images = adv_data["adv"].numpy()
-        train_adv_labels = adv_data["label"].numpy()
-        adv_data = {}
-        adv_data["adv"], adv_data["label"] = torch.load(test_path)
-        test_adv_images = adv_data["adv"].numpy()
-        test_adv_labels = adv_data["label"].numpy()
-    elif args.attack == "combine":
-        print("Attacks")
-        attacks = args.list.split("_")
-        print(attacks)
-
-        for i in range(len(attacks)):
-            _adv_dir = "adv_examples/{}/".format(attacks[i])
+    elif args.attack == "all" :
+        for i in range(len(ATTACK_LIST)):
+            _adv_dir = args.adv_dir + "{}/".format(ATTACK_LIST[i])
             train_path = _adv_dir + "train.pth" 
             test_path = _adv_dir + "test.pth"
 
             adv_train_data = torch.load(train_path)
             adv_test_data = torch.load(test_path)
-
+            
             if i == 0 :
                 train_adv_images = adv_train_data["adv"]
                 train_adv_labels = adv_train_data["label"]
                 test_adv_images = adv_test_data["adv"]
-                test_adv_labels = adv_test_data["label"]   
+                test_adv_labels = adv_test_data["label"] 
+                if args.val != -1:
+                    permutation = dataset['permutation']
+                    split = dataset['split']
+                    val_adv_images = train_adv_images[permutation[:split]]
+                    train_adv_images = train_adv_images[permutation[split:]]
+                    val_adv_labels = [train_adv_labels[p] for p in permutation[:split]]
+                    train_adv_labels = [train_adv_labels[p] for p in permutation[split:]]
+
             else :
-                train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
-                train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
                 test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
                 test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
                 
-    elif args.attack == "all" :
-        print("Loading attacks")
-        ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
-        for i in range(len(ATTACK_LIST)):
-            print("Attack: ", ATTACK_LIST[i])
-            _adv_dir = "adv_examples/{}/".format(ATTACK_LIST[i])
-            train_path = _adv_dir + "train.pth" 
-            test_path = _adv_dir + "test.pth"
+                if args.val != -1:
+                    permutation = dataset['permutation']
+                    split = dataset['split']
+                    val_adv_images = np.concatenate((val_adv_images, adv_train_data["adv"][permutation[:split]]))
+                    adv_train_data["adv"] = adv_train_data["adv"][permutation[split:]]
+                    val_adv_labels = np.concatenate((val_adv_labels, [adv_train_data["label"][p] for p in permutation[:split]]))
+                    adv_train_data["label"] = [adv_train_data["label"][p] for p in permutation[split:]]
 
-            adv_train_data = torch.load(train_path)
-            adv_test_data = torch.load(test_path)
-
-            if i == 0 :
-                train_adv_images = adv_train_data["adv"]
-                train_adv_labels = adv_train_data["label"]
-                test_adv_images = adv_test_data["adv"]
-                test_adv_labels = adv_test_data["label"]   
-            else :
                 train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
                 train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
-                test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
-                test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
+
+
     else :
         raise ValueError("Unknown adversarial data")
+
+
         
-    print("")
-    print("Train Adv Attack Data: ", args.attack)
-    print("Dataset shape: ", train_adv_images.shape)
-    print("Dataset type: ", type(train_adv_images))
-    print("Label shape: ", len(train_adv_labels))
-    print("")
-    
     train_adv_set = list(zip(train_adv_images,
         train_adv_labels))
-    
+
     
     if args.sample != 100 :
         n = len(train_adv_set) 
@@ -313,15 +296,22 @@ def main():
         
         np.random.shuffle(train_adv_set)
         train_adv_set = train_adv_set[:n_sample]
-    
-    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=0)
         
-    test_adv_set = list(zip(test_adv_images,
-        test_adv_labels))
+    print("")
+    print("Train Adv Attack Data: ", args.attack)
+    print("Len: ", len(train_adv_set))
+    print("")
+
+    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=4)
     
+    
+    if args.val != -1:
+        test_adv_set = list(zip(val_adv_images, val_adv_labels))
+    else :
+        test_adv_set = list(zip(test_adv_images,
+            test_adv_labels))
         
-    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=0)
-    
+    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=4)    
     epsilon = (args.epsilon / 255.)
     pgd_alpha = (args.pgd_alpha / 255.)
 
@@ -570,9 +560,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-    
-    
-    
-    
-#python train_cifar10.py --attack autoattack
