@@ -212,7 +212,7 @@ def get_auto_fname(args):
     if args.val != -1 :
         names += str(args.val) + "val/"
     else :
-        name += "default/"
+        names += "default/"
     
     if args.sample != 100 :
         names += str(args.sample) + "sample/" + args.attack + "/"
@@ -328,8 +328,7 @@ def main():
     train_path = adv_dir + "train.pth" 
     test_path = adv_dir + "test.pth"
     
-#     ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
-    ATTACK_LIST = ["pixelattack", "spatialtransformation", "squareattack", "fgsm", "deepfool", "bim", "cw", "pgd", "autoattack", "autopgd", "newtonfool"]
+    ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
     
 
     if args.attack in ATTACK_LIST :
