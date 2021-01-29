@@ -21,6 +21,9 @@ from preactresnet import PreActResNet18
 from utils import *
 from utils_awp import AdvWeightPerturb
 
+## import the root project to the python environment
+sys.path.insert(0,'/workspace/attack-analysis')
+
 from models import *
 from constant import TOOLBOX_ADV_ATTACK_LIST
 
@@ -80,16 +83,19 @@ def mixup_criterion(criterion, pred, y_a, y_b, lam):
 
 def get_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--train-adversarial', default='autoattack', type=str)
-    parser.add_argument('--list', default='autoattack_pgd', type=str)
-    parser.add_argument('--test-adversarial', default='autoattack', type=str)
-    parser.add_argument('--model', default='ResNet18')
+    parser.add_argument('--model', default='resnet18')
+    parser.add_argument('--model-dir', default='../trained_models/AWP/default/')
+    parser.add_argument('--train-adversarial', default='autoattack')
+    parser.add_argument('--test-adversarial', default='pgd')
+    parser.add_argument('--val', default=-1, type=int)
+    parser.add_argument('--sample', default=100, type=int)
+    parser.add_argument('--data-dir', default='../cifar-data/', type=str)
+    parser.add_argument('--adv-dir', default='../adv_examples/', type=str)
     parser.add_argument('--model-epoch', default=-1, type=int)
     parser.add_argument('--l2', default=0, type=float)
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--batch-size', default=128, type=int)
     parser.add_argument('--batch-size-test', default=128, type=int)
-    parser.add_argument('--data-dir', default='../cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
     parser.add_argument('--lr-schedule', default='piecewise', choices=['superconverge', 'piecewise', 'linear', 'piecewisesmoothed', 'piecewisezoom', 'onedrop', 'multipledecay', 'cosine', 'cyclic'])
     parser.add_argument('--lr-max', default=0.1, type=float)
@@ -103,7 +109,6 @@ def get_args():
     parser.add_argument('--fgsm-alpha', default=1.25, type=float)
     parser.add_argument('--norm', default='l_inf', type=str, choices=['l_inf', 'l_2'])
     parser.add_argument('--fgsm-init', default='random', choices=['zero', 'random', 'previous'])
-    parser.add_argument('--fname', default='../../trained_models/default/', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--half', action='store_true')
     parser.add_argument('--width-factor', default=10, type=int)
@@ -113,7 +118,6 @@ def get_args():
     parser.add_argument('--mixup', action='store_true')
     parser.add_argument('--mixup-alpha', type=float)
     parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--val', action='store_true')
     parser.add_argument('--chkpt-iters', default=10, type=int)
     parser.add_argument('--awp-gamma', default=0.01, type=float)
     parser.add_argument('--awp-warmup', default=0, type=int)
@@ -125,24 +129,24 @@ def main():
     if args.awp_gamma <= 0.0:
         args.awp_warmup = np.infty
     
-    fname = args.fname + args.train_adversarial + "/"
+    fname = args.model_dir + args.train_adversarial + "/"
     if not os.path.exists(fname):
         os.makedirs(fname)
-        
-    if args.train_adversarial == "combine" :
-        fname += args.list + "/"
-        if not os.path.exists(fname):
-            os.makedirs(fname)
-
     
-    eval_dir = fname + "eval/"
+    if args.val != -1 :
+        eval_dir = fname + "val" + str(args.val) + "/"
+    else :
+        eval_dir = fname + "eval/"
+    
     if args.model_epoch != -1 :
         eval_dir += str(args.model_epoch) + "/"
     else :
         eval_dir += "best/"
+
     eval_dir += args.test_adversarial + "/"
+    
     if not os.path.exists(eval_dir):
-#         print("Make dirs: ", eval_dir)s
+        print("Make dirs: ", eval_dir)
         os.makedirs(eval_dir)
     
     print("")
@@ -168,49 +172,133 @@ def main():
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed(args.seed)
 
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-    ])
-    test_set = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform_test)
-    test_batches = Batches(test_set, args.batch_size, shuffle=False)
-    
-    train_adv_images = None
-    train_adv_labels = None
-    test_adv_images = None
-    test_adv_labels = None
+    # setup data loader
+    transformations = [Crop(32, 32), FlipLR()]
+    if args.val != -1:
+        np.random.seed(args.seed)
+        m = 50000
+        P = np.random.permutation(m)
+        n = args.val
+        
+        dataset = cifar10(args.data_dir)
 
-    adv_dir = "adv_examples/{}/".format(args.test_adversarial)
+        val_data = dataset['train']['data'][P[:n]]
+        val_labels = [dataset['train']['labels'][p] for p in P[:n]]
+        train_data = dataset['train']['data'][P[n:]]
+        train_labels = [dataset['train']['labels'][p] for p in P[n:]]
+
+        dataset['train']['data'] = train_data
+        dataset['train']['labels'] = train_labels
+        dataset['val'] = {
+            'data' : val_data, 
+            'labels' : val_labels
+        }
+        dataset['split'] = n
+        dataset['permutation'] = P
+        
+        val_set = list(zip(transpose(dataset['val']['data']/255.), dataset['val']['labels']))
+        val_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)
+    else:
+        dataset = cifar10(args.data_dir)
+    train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
+        dataset['train']['labels']))
+    
+    
+    train_set = Transform(train_set, transformations)
+    if args.sample != 100 :
+        n = len(train_set) 
+        n_sample = int(n * args.sample / 100)
+        
+        np.random.shuffle(train_set)
+        train_set = train_set[:n_sample]
+
+    train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=4)
+
+    test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
+    if args.val != -1:
+        test_batches = Batches(val_set, args.batch_size, shuffle=False, num_workers=4)  
+    else :
+        test_batches = Batches(test_set, args.batch_size, shuffle=False, num_workers=4)      
+
+    print("Train Adv Attack Data: ", args.train_adversarial)
+    
+    adv_dir = args.adv_dir + "{}/".format(args.test_adversarial)
     train_path = adv_dir + "train.pth" 
     test_path = adv_dir + "test.pth"
     
+    ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
+    
+    train_adv_images = None
+    train_adv_labels = None
 
-    if args.test_adversarial in TOOLBOX_ADV_ATTACK_LIST :
+    val_adv_images = None
+    val_adv_labels = None
+    
+    test_adv_images = None
+    test_adv_labels = None
+    
+    if args.test_adversarial in ATTACK_LIST :
         adv_train_data = torch.load(train_path)
         train_adv_images = adv_train_data["adv"]
         train_adv_labels = adv_train_data["label"]
+        if args.val != -1:
+            permutation = dataset['permutation']
+            split = dataset['split']
+            val_adv_images = train_adv_images[permutation[:split]]
+            train_adv_images = train_adv_images[permutation[split:]]
+            val_adv_labels = [train_adv_labels[p] for p in permutation[:split]]
+            train_adv_labels = [train_adv_labels[p] for p in permutation[split:]]
         adv_test_data = torch.load(test_path)
         test_adv_images = adv_test_data["adv"]
         test_adv_labels = adv_test_data["label"]        
-    elif args.test_adversarial in ["ffgsm", "mifgsm", "tpgd"] :
-        adv_data = {}
-        adv_data["adv"], adv_data["label"] = torch.load(train_path)
-        train_adv_images = adv_data["adv"].numpy()
-        train_adv_labels = adv_data["label"].numpy()
-        adv_data = {}
-        adv_data["adv"], adv_data["label"] = torch.load(test_path)
-        test_adv_images = adv_data["adv"].numpy()
-        test_adv_labels = adv_data["label"].numpy()
+    elif args.test_adversarial == "all" :
+        for i in range(len(ATTACK_LIST)):
+            _adv_dir = args.adv_dir + "{}/".format(ATTACK_LIST[i])
+            train_path = _adv_dir + "train.pth" 
+            test_path = _adv_dir + "test.pth"
+
+            adv_train_data = torch.load(train_path)
+            adv_test_data = torch.load(test_path)
+            
+            if i == 0 :
+                train_adv_images = adv_train_data["adv"]
+                train_adv_labels = adv_train_data["label"]
+                test_adv_images = adv_test_data["adv"]
+                test_adv_labels = adv_test_data["label"] 
+                if args.val != -1 :
+                    permutation = dataset['permutation']
+                    split = dataset['split']
+                    val_adv_images = train_adv_images[permutation[:split]]
+                    train_adv_images = train_adv_images[permutation[split:]]
+                    val_adv_labels = [train_adv_labels[p] for p in permutation[:split]]
+                    train_adv_labels = [train_adv_labels[p] for p in permutation[split:]]
+
+            else :
+                test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
+                test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
+                
+                if args.val != -1:
+                    permutation = dataset['permutation']
+                    split = dataset['split']
+                    val_adv_images = np.concatenate((val_adv_images, adv_train_data["adv"][permutation[:split]]))
+                    adv_train_data["adv"] = adv_train_data["adv"][permutation[split:]]
+                    val_adv_labels = np.concatenate((val_adv_labels, [adv_train_data["label"][p] for p in permutation[:split]]))
+                    adv_train_data["label"] = [adv_train_data["label"][p] for p in permutation[split:]]
+
+                train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
+                train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
+
+
     else :
         raise ValueError("Unknown adversarial data")
-            
-    train_adv_set = list(zip(train_adv_images,
-        train_adv_labels))
     
-    train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=True, set_random_choices=False, num_workers=4)
+    print("Test Adv Attack Data: ", args.test_adversarial)
     
-    test_adv_set = list(zip(test_adv_images,
-        test_adv_labels))
-        
+    if args.val != -1 :
+        test_adv_set = list(zip(val_adv_images, val_adv_labels))
+    else :
+        test_adv_set = list(zip(test_adv_images, test_adv_labels))
+    
     test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=4)
     
     model = resnet18(pretrained=True)
