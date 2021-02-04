@@ -13,6 +13,9 @@ from torch.autograd import Variable
 import os
 
 from wideresnet import WideResNet
+
+## import the root project to the python environment
+sys.path.insert(0,'/workspace/attack-analysis')
 from models import *
 
 from utils import *
@@ -106,8 +109,11 @@ def CW_loss(x, y):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
-    parser.add_argument('--centroids', default='pixelattack_spatialtransformation_autopgd')
-    parser.add_argument('--noise-predictor', default='maxlr0.05_wd0.0001_ls0.3')
+    parser.add_argument('--centroids', default='pixelattack_spatialtransformation_autoattack')
+    parser.add_argument('--adv-example-dir', default='../adv_examples/', type=str)
+    parser.add_argument('--model-dir', default='../trained_models/BagOfTricks/1000val/full/', type=str)
+    parser.add_argument('--adv-detector-dir', default='../adv_detectors/1000val/full/', type=str)
+    parser.add_argument('--output-dir', default='../ensemble_models/', type=str)
     parser.add_argument('--l1', default=0, type=float)
     parser.add_argument('--data-dir', default='cifar-data', type=str)
     parser.add_argument('--epochs', default=110, type=int)
@@ -125,7 +131,6 @@ def get_args():
     parser.add_argument('--fgsm-alpha', default=1.25, type=float)
     parser.add_argument('--norm', default='l_inf', type=str, choices=['l_inf', 'l_2'])
     parser.add_argument('--fgsm-init', default='random', choices=['zero', 'random', 'previous'])
-    parser.add_argument('--fname', default='cifar_model', type=str)
     parser.add_argument('--seed', default=0, type=int)
     parser.add_argument('--half', action='store_true')
     parser.add_argument('--width-factor', default=10, type=int)
@@ -202,17 +207,8 @@ def get_auto_fname(args):
 
 def main():
     args = get_args()
-    base_dir = 'ensemble_models/'
-    if args.fname == 'auto':
-        names = get_auto_fname(args)
-        args.fname = base_dir + names
-    else:
-        args.fname = base_dir + args.fname
-
-    if not os.path.exists(args.fname):
-        os.makedirs(args.fname)
-        
-    eval_dir = args.fname + '/eval/all/'
+    base_dir = args.output_dir
+    eval_dir = base_dir + 'eval/'
 
     if not os.path.exists(eval_dir):
         print("Make dirs: ", eval_dir)
@@ -240,47 +236,33 @@ def main():
 
     # Prepare data
 
-    ATTACK_LIST = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
-#     ATTACK_LIST = ["autopgd"]
+    ATTACKS = ["autoattack", "autopgd", "bim", "cw", "deepfool", "fgsm", "newtonfool", "pgd", "pixelattack", "spatialtransformation", "squareattack"]
+#     ATTACKS = ["autopgd"]
     
     print("Load test data...")
 
-    for i in range(len(ATTACK_LIST)):
-        _adv_dir = "adv_examples/{}/".format(ATTACK_LIST[i])
-        train_path = _adv_dir + "train.pth" 
+    for i in range(len(ATTACKS)):
+        _adv_dir = args.adv_example_dir + "{}/".format(ATTACKS[i])
         test_path = _adv_dir + "test.pth"
 
-        adv_train_data = torch.load(train_path)
         adv_test_data = torch.load(test_path)
 
         if i == 0 :
-            train_adv_images = adv_train_data["adv"]
-            train_adv_labels = adv_train_data["label"]
             test_adv_images = adv_test_data["adv"]
             test_adv_labels = adv_test_data["label"]   
         else :
-            train_adv_images = np.concatenate((train_adv_images, adv_train_data["adv"]))
-            train_adv_labels = np.concatenate((train_adv_labels, adv_train_data["label"]))
             test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
             test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
 
-        test_adv_images_on_train = train_adv_images
-        test_adv_labels_on_train = train_adv_labels
-        test_adv_images_on_test = test_adv_images
-        test_adv_labels_on_test = test_adv_labels
+    test_adv_images = test_adv_images
+    test_adv_labels = test_adv_labels
         
     print("Add to dataloader...")
-
     
-    test_adv_on_train_set = list(zip(test_adv_images_on_train,
-        test_adv_labels_on_train))
-    
-    test_adv_on_train_batches = Batches(test_adv_on_train_set, args.batch_size, shuffle=False, set_random_choices=False, num_workers=0)
-    
-    test_adv_on_test_set = list(zip(test_adv_images_on_test,
-        test_adv_labels_on_test))
+    test_adv_set = list(zip(test_adv_images,
+        test_adv_labels))
         
-    test_adv_on_test_batches = Batches(test_adv_on_test_set, args.batch_size, shuffle=False, num_workers=0)
+    test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=0)
     
     print("Load model...")
 
@@ -290,26 +272,21 @@ def main():
     for c in centroids :
         models[c] = resnet18()
         models[c].cuda()
-        model_path = "trained_models/backup/resnet18_{}_piecewise_eps8_bs128_maxlr0.1_ls0.3_BNeval/model_best.pth".format(c)
+        model_path = args.model_dir + "{}/model_best.pth".format(c)
         models[c].load_state_dict(torch.load(model_path)["state_dict"])
         models[c].eval()
         
     noise_predictor = resnet18(num_classes=len(centroids))
     noise_predictor.cuda()
-    n = len(centroids)
-    noise_predictor_path = os.path.join("noise_predictor/resnet18_{}_{}_piecewise_eps8_bs128_{}_BNeval/".format(n, args.centroids, args.noise_predictor), f'model_best.pth')
+    noise_predictor_path = os.path.join(args.adv_detector_dir + "{}/".format(args.centroids), f'model_best.pth')
     noise_predictor.load_state_dict(torch.load(noise_predictor_path)["state_dict"])
     noise_predictor.eval()
 
     
-    test_adv_test_acc = 0
-    test_adv_test_n = 0
+    test_adv_acc = 0
+    test_adv_n = 0
     y_adv = np.array([])
     y_adv_pred = np.array([])
-
-#     test_adv_train_loss = 0
-#     test_adv_train_acc = 0
-#     test_adv_train_n = 0
 
     id2centroid = {}
     i = 0
@@ -320,7 +297,7 @@ def main():
     print("Predicting...")
     
 
-    for i, batch in enumerate(test_adv_on_test_batches):
+    for i, batch in enumerate(test_adv_batches):
         adv_input = normalize(batch['input'])
         
         cluster_output = noise_predictor(adv_input)
@@ -336,47 +313,18 @@ def main():
 
         cross_robust_output = model(adv_input)
 
-        test_adv_test_acc += (cross_robust_output.max(1)[1] == y).sum().item()
-        test_adv_test_n += y.size(0)
+        test_adv_acc += (cross_robust_output.max(1)[1] == y).sum().item()
+        test_adv_n += y.size(0)
 
         y_adv = np.append(y_adv, y.cpu().numpy())
         y_adv_pred = np.append(y_adv_pred, cross_robust_output.max(1)[1].cpu().numpy())
 
         
-#     for i, batch in enumerate(test_adv_on_train_batches):
-#         adv_input = normalize(batch['input'])
-#         y = batch['target']
-
-#         cross_robust_output = model(adv_input)
-#         cross_robust_loss = criterion(cross_robust_output, y)
-
-#         test_adv_train_loss += cross_robust_loss.item() * y.size(0)
-#         test_adv_train_acc += (cross_robust_output.max(1)[1] == y).sum().item()
-#         test_adv_train_n += y.size(0)
-
     test_time = time.time()
 
-    logger.info("Test Robust Acc on Test")
+    logger.info("Test Robust Accuracy")
     logger.info('%.4f', 
-                test_adv_test_acc/test_adv_test_n)
-
-#     logger.info("Test Acc \tTest Robust Acc on Test \tTest Robust Acc on Train")
-#     logger.info('%.4f \t\t %.4f \t\t %.4f', 
-#                 test_acc/test_n,
-#                 test_adv_test_acc/test_adv_test_n,
-#                 test_adv_train_acc/test_adv_train_n)
-
-    
-#     y_original = y_original.astype(np.int)
-#     y_original_pred = y_original_pred.astype(np.int)
-
-#     logger.info("Y_original")
-#     logger.info(y_original)
-#     np.savetxt(os.path.join(eval_dir, "Y_original.txt"), y_original,  fmt='%i')
-    
-#     logger.info("Y_original_pred")
-#     logger.info(y_original_pred)
-#     np.savetxt(os.path.join(eval_dir, "Y_original_pred.txt"), y_original_pred, fmt='%i')
+                test_adv_acc/test_adv_n)
 
 
     y_adv = y_adv.astype(np.int)
