@@ -122,4 +122,6 @@ adv_examples/
 models/
 data/
 trained_models/
+ensemble_models/
+adv_detectors/
 *.pth
