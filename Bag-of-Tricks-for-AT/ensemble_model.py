@@ -109,6 +109,7 @@ def CW_loss(x, y):
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='resnet18')
+    parser.add_argument('--test-adversarial', default='pgd')
     parser.add_argument('--centroids', default='pixelattack_spatialtransformation_autoattack')
     parser.add_argument('--adv-example-dir', default='../adv_examples/', type=str)
     parser.add_argument('--model-dir', default='../trained_models/BagOfTricks/1000val/full/', type=str)
@@ -199,16 +200,10 @@ def get_args():
 
     return parser.parse_args()
 
-def get_auto_fname(args):    
-    names = args.model + '_'  + args.centroids + '_' + args.noise_predictor + '_' + args.lr_schedule + '_eps' + str(args.epsilon) + '_bs' + str(args.batch_size) + '_maxlr' + str(args.lr_max)
-
-    print('File name: ', names)
-    return names
-
 def main():
     args = get_args()
-    base_dir = args.output_dir
-    eval_dir = base_dir + 'eval/'
+    base_dir = args.output_dir + args.centroids + "/"
+    eval_dir = base_dir + 'eval/' + args.test_adversarial + "/"
 
     if not os.path.exists(eval_dir):
         print("Make dirs: ", eval_dir)
@@ -240,19 +235,21 @@ def main():
 #     ATTACKS = ["autopgd"]
     
     print("Load test data...")
+    
+    test_adv_images = None
+    test_adv_labels = None
 
-    for i in range(len(ATTACKS)):
-        _adv_dir = args.adv_example_dir + "{}/".format(ATTACKS[i])
+
+    if args.test_adversarial in ATTACKS :
+        _adv_dir = args.adv_example_dir + "{}/".format(args.test_adversarial)
         test_path = _adv_dir + "test.pth"
 
         adv_test_data = torch.load(test_path)
 
-        if i == 0 :
-            test_adv_images = adv_test_data["adv"]
-            test_adv_labels = adv_test_data["label"]   
-        else :
-            test_adv_images = np.concatenate((test_adv_images, adv_test_data["adv"]))
-            test_adv_labels = np.concatenate((test_adv_labels, adv_test_data["label"]))
+        test_adv_images = adv_test_data["adv"]
+        test_adv_labels = adv_test_data["label"]   
+    else :
+        raise ValueError("Test Adversarial is not defined")
 
     test_adv_images = test_adv_images
     test_adv_labels = test_adv_labels
