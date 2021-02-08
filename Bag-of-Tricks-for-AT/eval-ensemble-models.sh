@@ -1,17 +1,9 @@
 ## Used to run in different GPUs
-# declare -a train=("original" "autoattack" "autopgd" )
-# declare -a train=("bim" "cw" "fgsm")
-# declare -a train=("pgd" "squareattack" "deepfool")
-# declare -a train=("newtonfool" "pixelattack" "spatialtransformation")
+declare -a train=("pixelattack_spatialtransformation_autoattack")
 
-# declare -a train=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm")
+declare -a test=("spatialtransformation")
 
-# declare -a train=("newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack" )
-
-
-declare -a train=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
-
-declare -a test=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
+# declare -a test=("autoattack" "autopgd" "bim" "cw" "deepfool" "fgsm" "newtonfool" "pgd" "pixelattack" "spatialtransformation" "squareattack")
 
 
 # for tr in ${train[@]}; do
@@ -30,8 +22,7 @@ for tr in ${train[@]}; do
             --train-adversarial $tr \
             --test-adversarial $ts \
             --batch-size 128 \
-            --model-dir ../trained_models/BagOfTricks/1000val/full/ \
-            --val 1000
+            --model-dir ../adv_detectors/1000val/full/
     done
 done
 
