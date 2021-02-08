@@ -362,14 +362,16 @@ def main():
             curr_test_adv_labels = [i] * len(adv_test_data["label"])
             
             train_adv_images = np.concatenate((train_adv_images, curr_train_adv_images))
-            test_adv_images = np.concatenate((test_adv_images, curr_test_adv_images))
             train_adv_labels = np.concatenate((train_adv_labels, curr_train_adv_labels))
+            val_adv_images = np.concatenate((val_adv_images, curr_val_adv_images))
+            val_adv_labels = np.concatenate((val_adv_labels, curr_val_adv_labels))  
+            
+            test_adv_images = np.concatenate((test_adv_images, curr_test_adv_images))
             test_adv_labels = np.concatenate((test_adv_labels, curr_test_adv_labels))  
         
     train_adv_set = list(zip(train_adv_images,
         train_adv_labels))
 
-    
     if args.sample != 100 :
         n = len(train_adv_set) 
         n_sample = int(n * args.sample / 100)
@@ -379,7 +381,7 @@ def main():
         
     print("")
     print("Train Adv Attack Data: ", args.list)
-    print("Len: ", len(train_adv_set))
+    print("Len Train: ", len(train_adv_set))
     print("")
 
     train_adv_batches = Batches(train_adv_set, args.batch_size, shuffle=shuffle, set_random_choices=False, num_workers=4)
@@ -392,7 +394,8 @@ def main():
             test_adv_labels))
         
     test_adv_batches = Batches(test_adv_set, args.batch_size, shuffle=False, num_workers=4)
-        
+    print("Len Test: ", len(test_adv_set))
+    
     # Set perturbations
     epsilon = (args.epsilon / 255.)
     test_epsilon = (args.test_epsilon / 255.)
