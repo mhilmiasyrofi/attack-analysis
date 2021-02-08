@@ -5,9 +5,11 @@
 ## Declare an array of string with type
 # declare -a adv=("pixelattack_spatialtransformation_bim" "pixelattack_spatialtransformation_deepfool" "pixelattack_spatialtransformation_autoattack")
 
-# declare -a adv=("pixelattack_spatialtransformation_bim" "pixelattack_spatialtransformation_deepfool")
+# declare -a adv=("pixelattack_spatialtransformation_bim")
 
-declare -a adv=("pixelattack_spatialtransformation_autoattack")
+# declare -a adv=("pixelattack_spatialtransformation_autoattack")
+
+declare -a adv=("pixelattack_spatialtransformation_deepfool")
 
 
 ## Iterate the string array using for loop
@@ -21,11 +23,14 @@ for a in ${adv[@]}; do
         --labelsmooth \
         --labelsmoothvalue 0.3 \
         --optimizer 'momentum' \
-        --weight_decay 5e-4 \
+        --weight_decay 2e-4 \
         --batch-size 128 \
         --BNeval \
         --val 1000
     done
+    
+
+# bash ensemble_model.sh
 
 # python adv_detector_training.py --model resnet18 \
 #     --list pixelattack_spatialtransformation_deepfool \
