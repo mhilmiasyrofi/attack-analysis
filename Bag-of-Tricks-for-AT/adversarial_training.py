@@ -289,8 +289,6 @@ def main():
     train_set = list(zip(transpose(pad(dataset['train']['data'], 4)/255.),
         dataset['train']['labels']))
     
-    
-    train_set = Transform(train_set, transformations)
     if args.sample != 100 :
         n = len(train_set) 
         n_sample = int(n * args.sample / 100)
@@ -298,6 +296,8 @@ def main():
         np.random.shuffle(train_set)
         train_set = train_set[:n_sample]
 
+    train_set = Transform(train_set, transformations)
+        
     train_batches = Batches(train_set, args.batch_size, shuffle=True, set_random_choices=True, num_workers=4)
 
     test_set = list(zip(transpose(dataset['test']['data']/255.), dataset['test']['labels']))
