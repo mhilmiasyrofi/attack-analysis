@@ -390,8 +390,7 @@ def main():
     # Set models
     model = None
     if args.model == "resnet18" :
-#         model = resnet18(pretrained=True)
-        model = resnet18(num_classes=3)
+        model = resnet18(pretrained=True)
     elif args.model == "resnet20" :
         model = resnet20()
     elif args.model == "vgg16bn" :
@@ -607,8 +606,8 @@ def main():
 
         clean_input = normalize(X)
         output = model(clean_input)
-#         loss = criterion(output, y)
-#         test_loss += loss.item() * y.size(0)
+        loss = criterion(output, y)
+        test_loss += loss.item() * y.size(0)
         test_acc += (output.max(1)[1] == y).sum().item()
         test_n += y.size(0)
         
@@ -619,12 +618,10 @@ def main():
     for i, batch in enumerate(test_adv_batches):
         adv_input = normalize(batch['input'])
         y = batch['target']
-        y = torch.from_numpy(np.array([2] * len(y))).float().to(device)
-#         print(y)
 
         robust_output = model(adv_input)
-#         robust_loss = criterion(robust_output, y)
-#         test_adv_loss += robust_loss.item() * y.size(0)
+        robust_loss = criterion(robust_output, y)
+        test_adv_loss += robust_loss.item() * y.size(0)
         test_adv_acc += (robust_output.max(1)[1] == y).sum().item()
         test_adv_n += y.size(0)
 
