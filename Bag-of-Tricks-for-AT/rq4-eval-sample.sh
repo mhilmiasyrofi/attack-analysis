@@ -1,7 +1,13 @@
 declare -a train=("autoattack" "autopgd" "bim" "cw" "fgsm" "pgd" "squareattack" "deepfool" "newtonfool" "pixelattack" "spatialtransformation")
 declare -a test=("autoattack" "autopgd" "bim" "cw" "fgsm" "pgd" "squareattack" "deepfool" "newtonfool" "pixelattack" "spatialtransformation")
 # declare -a epochs=(0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20)
-declare -a epochs=(0 1 2 3 4 5 6 7 8 9)
+# declare -a epochs=(0 1 2 3 4)
+
+# declare -a train=("autoattack")
+# declare -a test=("autopgd")
+
+# declare -a epochs=(4)
+declare -a epochs=(0 1 2 3)
 
 for ep in ${epochs[@]}; do
     for tr in ${train[@]}; do
@@ -10,16 +16,11 @@ for ep in ${epochs[@]}; do
                 --train-adversarial $tr \
                 --test-adversarial $ts \
                 --model-epoch $ep \
-                --fname ../../trained_models/default/ \
-                --lr-schedule piecewise \
-                --norm l_inf \
-                --epsilon 8 \
-                --labelsmooth \
-                --labelsmoothvalue 0.3 \
-                --optimizer 'momentum' \
-                --weight_decay 5e-4 \
+                --train-adversarial $tr \
+                --test-adversarial $ts \
                 --batch-size 128 \
-                --BNeval 
+                --model-dir ../trained_models/BagOfTricks/1000val/50sample/ \
+                --val 1000
         done
     done
 done
