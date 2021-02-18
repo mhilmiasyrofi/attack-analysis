@@ -3,33 +3,33 @@ Adversarial training codes originated from [Bag of Tricks for Adversarial Traini
 
 ## RQ1
 
-Running command for adversarial training
+Run a command for adversarial training
 ```
-bash train-rq1.sh
+bash rq1-train.sh
 ```
-This script will generate trained models that is saved at `../trained_models/BagofTricks/1000val/full/`
+This script will save the trained models inside `../trained_models/BagofTricks/1000val/full/`
 
 Run evaluation using the trained models
 ```
-bash eval-rq1.sh
+bash rq1-eval.sh
 ```
 This script will run evaluation on adversarial test-set then generate log on `../trained_models/BagofTricks/1000val/full/<train>/eval/best/<test>/`
 
-Then perform clustering on `clustering-analysis-rq1.ipynb`
+Then perform: (1) clustering analysis using `rq1-clustering-analysis.ipynb`, (2) intracluster similarity and intercluster difference using `rq1-similarity-boxplot.ipynb`
 
 
 ## RQ3
 
-Best performing model analysis: `best-performing-model-analysis.ipynb`
+Best performing model analysis: `rq3-analysis.ipynb`
 
 
 ## RQ4
 
 Running command for adversarial training
 ```
-bash train-rq1.sh
+bash rq4-train-sample.sh
 ```
-This script will generate trained models that is saved at `<fpath>`
+The script will save the trained models inside `../trained_models/BagofTricks/1000val/25sample/`    
 
 Run evaluation using the trained models
 ```
